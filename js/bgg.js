@@ -1,12 +1,12 @@
 async function fetchBggCollection(username) {
-    // AllOrigins free CORS proxy - returns JSON with XML in 'contents'
-    const proxyUrl = 'https://api.allorigins.win/get?url=';
+    // ThingProxy: a reliable free CORS proxy. It fetches the raw URL.
+    const proxyUrl = 'https://thingproxy.freeboard.io/fetch/';
     const bggUrl = `https://boardgamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username)}&own=1`;
-    const url = proxyUrl + encodeURIComponent(bggUrl);
+    const url = proxyUrl + bggUrl;
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for BGG
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -15,18 +15,22 @@ async function fetchBggCollection(username) {
             throw new Error(`Proxy HTTP error! status: ${response.status}`);
         }
 
-        const data = await response.json();
-        const xmlText = data.contents;
+        // The proxy returns raw XML, so we get it as text.
+        const xmlText = await response.text();
+
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, "text/xml");
         
-        if (xmlDoc.querySelector('parsererror')) {
-            throw new Error('Invalid XML - no collection found or BGG error');
+        // Check for BGG's "please wait" message or other invalid XML
+        if (xmlDoc.querySelector('parsererror') || !xmlText.trim().startsWith('<')) {
+            if (xmlText.includes("Your request for this collection is being processed")) {
+                 throw new Error('BGG is processing the collection. Please try again in a moment.');
+            }
+            throw new Error('Invalid XML response from BGG or proxy.');
         }
         
         const games = [];
         const items = xmlDoc.getElementsByTagName('item');
-        console.log(`Found ${items.length} items for ${username}`);
         for (let i = 0; i < Math.min(items.length, 30); i++) {
             const nameNode = items[i].getElementsByTagName('name')[0];
             const name = nameNode ? nameNode.textContent : 'Unknown';
@@ -40,11 +44,10 @@ async function fetchBggCollection(username) {
                 games.push({ name, year, image, bggId });
             }
         }
-        console.log(`Parsed ${games.length} games`);
         return games;
     } catch (error) {
         console.error("Failed to fetch BGG collection:", error);
-        return [];
+        throw error; // Re-throw the error to be caught by the caller in app.js
     }
 }
 

@@ -148,30 +148,36 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        const games = await fetchBggCollection(username);
         const collectionContainer = document.getElementById('bgg-collection');
-        collectionContainer.innerHTML = ''; // Clear previous results
+        collectionContainer.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>'; // Loading spinner
 
-        if (games.length === 0) {
-            collectionContainer.innerHTML = '<p>Could not fetch collection. Check the username or proxy.</p>';
-            return;
-        }
+        try {
+            const games = await fetchBggCollection(username);
+            collectionContainer.innerHTML = ''; // Clear spinner
 
-        games.forEach(game => {
-            const gameCard = `
-                <div class="col-md-3 mb-4">
-                    <div class="card game-card" data-bgg-id="${game.bggId}">
-                        <img src="${game.image}" class="card-img-top" alt="${game.name}">
-                        <div class="card-body">
-                            <h5 class="card-title">${game.name}</h5>
-                            <p class="card-text">${game.year || ''}</p>
-                            <button class="btn btn-sm btn-primary add-to-shortlist-button">Add to Shortlist</button>
+            if (games.length === 0) {
+                collectionContainer.innerHTML = '<p>No games found in collection.</p>';
+                return;
+            }
+
+            games.forEach(game => {
+                const gameCard = `
+                    <div class="col-md-3 mb-4">
+                        <div class="card game-card" data-bgg-id="${game.bggId}">
+                            <img src="${game.image}" class="card-img-top" alt="${game.name}">
+                            <div class="card-body">
+                                <h5 class="card-title">${game.name}</h5>
+                                <p class="card-text">${game.year || ''}</p>
+                                <button class="btn btn-sm btn-primary add-to-shortlist-button">Add to Shortlist</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
-            collectionContainer.insertAdjacentHTML('beforeend', gameCard);
-        });
+                `;
+                collectionContainer.insertAdjacentHTML('beforeend', gameCard);
+            });
+        } catch (error) {
+            collectionContainer.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+        }
     });
 
     // Add to shortlist
