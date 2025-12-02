@@ -1,6 +1,6 @@
 async function fetchBggCollection(username) {
-    // cors.eu.org: a simple and effective CORS proxy
-    const proxyUrl = 'https://cors.eu.org/';
+    // IMPORTANT: Replace this with your own Cloudflare Worker URL from the README instructions
+    const proxyUrl = 'YOUR_WORKER_URL_HERE/?url='; 
     const bggUrl = `https://boardgamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username)}&own=1`;
     const url = proxyUrl + bggUrl;
 
