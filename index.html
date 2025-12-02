@@ -16,10 +16,11 @@
                 <span class="fs-4">Board Game Group Planner</span>
             </a>
             <ul class="nav nav-pills">
-                <li class="nav-item"><a href="#" class="nav-link active" id="nav-collection">Collection</a></li>
+                <li class="nav-item"><a href="#" class="nav-link" id="nav-collection">Collection</a></li>
                 <li class="nav-item"><a href="#" class="nav-link" id="nav-shortlist">Shortlist</a></li>
                 <li class="nav-item"><a href="#" class="nav-link" id="nav-polls">Polls</a></li>
                 <li class="nav-item"><a href="#" class="nav-link" id="nav-events">Events</a></li>
+                <li class="nav-item"><a href="#" class="nav-link" id="nav-login">Login</a></li>
             </ul>
             <div id="user-display" class="ms-3 d-flex align-items-center"></div>
         </header>
@@ -30,8 +31,11 @@
                 <h2>Login</h2>
                 <div class="input-group mb-3">
                     <input type="text" id="username-input" class="form-control" placeholder="Enter your username">
-                    <button class="btn btn-primary" type="button" id="login-button">Login</button>
                 </div>
+                <div class="input-group mb-3 d-none" id="password-field">
+                    <input type="password" id="password-input" class="form-control" placeholder="Enter admin password">
+                </div>
+                <button class="btn btn-primary" type="button" id="login-button">Login</button>
             </section>
 
             <!-- Collection View -->
