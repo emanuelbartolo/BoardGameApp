@@ -250,4 +250,105 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedGames = [];
         document.querySelectorAll('#poll-games-options input[type=checkbox]:checked').forEach(checkbox => {
             const game = shortlist.find(g => g.bggId === checkbox.value);
-            if
+            if (game) {
+                selectedGames.push(game);
+            }
+        });
+
+        if (selectedGames.length === 0) {
+            alert('Please select at least one game for the poll.');
+            return;
+        }
+
+        const newPoll = {
+            title,
+            games: selectedGames,
+        };
+
+        polls.push(newPoll);
+        localStorage.setItem('bgg_polls', JSON.stringify(polls));
+        alert('Poll saved!');
+        showView('polls');
+    });
+
+    // Vote on Poll
+    document.getElementById('polls-list').addEventListener('click', (e) => {
+        if (e.target.classList.contains('vote-button')) {
+            const pollIndex = e.target.dataset.pollIndex;
+            const poll = polls[pollIndex];
+
+            const selectedOption = Array.from(document.getElementsByName(`poll-${pollIndex}`)).find(radio => radio.checked);
+            if (!selectedOption) {
+                alert('Please select an option before voting.');
+                return;
+            }
+
+            const selectedGameId = selectedOption.value;
+            const selectedGame = poll.games.find(game => game.bggId === selectedGameId);
+
+            if (selectedGame) {
+                alert(`You voted for ${selectedGame.name} in the poll "${poll.title}"`);
+            } else {
+                alert('Error: Game not found in poll.');
+            }
+        }
+    });
+
+    // Download ICS
+    document.getElementById('events-list').addEventListener('click', (e) => {
+        if (e.target.classList.contains('download-ics-button')) {
+            const eventIndex = e.target.dataset.eventIndex;
+            const event = events[eventIndex];
+
+            const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:${event.title}
+DTSTART:${event.date}T${event.time}
+LOCATION:${event.location}
+DESCRIPTION:BGG Event
+END:VEVENT
+END:VCALENDAR`;
+
+            const blob = new Blob([icsContent], { type: 'text/calendar' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${event.title}.ics`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    });
+
+    // Share Event
+    document.getElementById('events-list').addEventListener('click', (e) => {
+        if (e.target.classList.contains('share-event-button')) {
+            const eventIndex = e.target.dataset.eventIndex;
+            const event = events[eventIndex];
+
+            const shareData = {
+                title: event.title,
+                text: `Join me for ${event.title} on ${event.date} at ${event.time}. Location: ${event.location}`,
+                url: window.location.href,
+            };
+
+            navigator.share(shareData)
+                .then(() => console.log('Event shared successfully'))
+                .catch(err => console.error('Error sharing event:', err));
+        }
+    });
+
+    // Remove from shortlist
+    document.getElementById('shortlist-games').addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-from-shortlist-button')) {
+            const card = e.target.closest('.card');
+            const bggId = card.dataset.bggId;
+            shortlist = shortlist.filter(game => game.bggId !== bggId);
+            localStorage.setItem('bgg_shortlist', JSON.stringify(shortlist));
+            renderShortlist();
+        }
+    });
+});
