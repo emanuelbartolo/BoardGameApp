@@ -3,7 +3,7 @@
 // Consider using Firebase Hosting environment variables to store this.
 
 const firebaseConfig = {
-  apiKey: "xxx",
+  apiKey: "AIzaSyBCMCnpghrEk4q6UKWGdFCnbDH_CmHmjHY",
   authDomain: "boardgameapp-cc741.firebaseapp.com",
   projectId: "boardgameapp-cc741",
   storageBucket: "boardgameapp-cc741.firebasestorage.app",
