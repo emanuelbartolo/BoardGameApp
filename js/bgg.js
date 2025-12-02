@@ -1,6 +1,6 @@
 async function fetchBggCollection(username) {
-    // IMPORTANT: Replace this with your own Cloudflare Worker URL from the README instructions
-    const proxyUrl = 'YOUR_WORKER_URL_HERE/?url='; 
+    // Your personal Cloudflare Worker proxy
+    const proxyUrl = 'https://bgg-proxy.emanuelbartolo.workers.dev/?url='; 
     const bggUrl = `https://boardgamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username)}&own=1`;
     const url = proxyUrl + bggUrl;
 
