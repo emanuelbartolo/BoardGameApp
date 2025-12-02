@@ -15,15 +15,25 @@ function parseBggXml(xmlText) {
         
         if (name === 'Unknown') continue; // Skip items without a name
 
-        const yearNode = items[i].getElementsByTagName('yearpublished')[0];
-        const year = yearNode ? yearNode.textContent : '';
-        const imageNode = items[i].getElementsByTagName('thumbnail')[0];
-        const image = imageNode ? imageNode.textContent : '';
         const bggId = items[i].getAttribute('objectid') || '';
+        if (!bggId) continue;
 
-        if (bggId) {
-            games.push({ name, year, image, bggId });
-        }
+        const yearNode = items[i].getElementsByTagName('yearpublished')[0];
+        const imageNode = items[i].getElementsByTagName('thumbnail')[0];
+        
+        const statsNode = items[i].getElementsByTagName('stats')[0];
+        const ratingNode = statsNode ? statsNode.querySelector('rating average') : null;
+
+        games.push({
+            name: name,
+            bggId: bggId,
+            year: yearNode ? yearNode.textContent : '',
+            image: imageNode ? imageNode.textContent : '',
+            minPlayers: statsNode ? statsNode.getAttribute('minplayers') : 'N/A',
+            maxPlayers: statsNode ? statsNode.getAttribute('maxplayers') : 'N/A',
+            playingTime: statsNode ? statsNode.getAttribute('playingtime') : 'N/A',
+            rating: ratingNode ? parseFloat(ratingNode.getAttribute('value')).toFixed(1) : 'N/A',
+        });
     }
     return games;
 }

@@ -14,27 +14,23 @@ exports.bggProxy = functions.https.onRequest(async (request, response) => {
     return;
   }
 
-  const username = request.query.username;
-  if (!username) {
-    response.status(400).send("Missing 'username' query parameter");
+  // This is the new, flexible part. It takes a 'path' like 'collection?username=...' or 'thing?id=...'
+  const bggApiPath = request.query.path;
+  if (!bggApiPath) {
+    response.status(400).send("Missing 'path' query parameter");
     return;
   }
 
-  const bggUrl = `https://boardgamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username)}&own=1`;
+  const bggUrl = `https://boardgamegeek.com/xmlapi2/${bggApiPath}`;
 
-  // These headers make our server's request look like it's from a real browser,
-  // which is necessary to get past BGG's anti-bot security.
   const requestHeaders = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept': 'application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7',
     'Accept-Language': 'en-US,en;q=0.5',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Referer': 'https://boardgamegeek.com/',
-    'Connection': 'keep-alive',
   };
 
   try {
-    logger.info(`Fetching BGG collection for: ${username} with full headers.`);
+    logger.info(`Proxying BGG request for: ${bggUrl}`);
     const bggResponse = await fetch(bggUrl, { headers: requestHeaders });
 
     if (!bggResponse.ok) {

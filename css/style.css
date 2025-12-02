@@ -11,10 +11,43 @@ section {
 .game-card:hover {
     background-color: #f8f9fa;
 }
-.game-card img {
-    height: 200px;
-    object-fit: cover;
+.game-card .card-img-top {
+    width: 100%; /* Let the image fill the card's width */
+    aspect-ratio: 1 / 1; /* Enforce a square aspect ratio */
+    object-fit: cover; /* Crop the image to fit the square without distortion */
 }
 .poll-options .form-check {
     margin-bottom: 0.5rem;
+}
+
+/* --- Layout Styles --- */
+.game-card.list-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+.game-card.list-layout img {
+    width: 100px;
+    height: 100px;
+    margin-right: 1rem;
+}
+.game-card.list-layout .card-body {
+    flex-grow: 1;
+}
+
+/* --- Small Grid Layout Compact Styles --- */
+.layout-small-grid .game-card .card-body {
+    padding: 0.75rem;
+}
+.layout-small-grid .game-card .card-title {
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+.layout-small-grid .game-card .card-text {
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+}
+.layout-small-grid .game-card .btn {
+    font-size: 0.75rem;
+    padding: 0.1rem 0.4rem;
 }

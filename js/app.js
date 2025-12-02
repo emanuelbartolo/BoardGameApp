@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- App State ---
     let currentUser = localStorage.getItem('bgg_username');
     const adminUser = 'leli84'; // The designated admin
+    let currentLayout = localStorage.getItem('bgg_layout') || 'large-grid';
 
     // --- DOM Elements ---
     const views = {
@@ -24,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminPanel = document.getElementById('admin-panel');
     const gameCollectionContainer = document.getElementById('game-collection');
     const shortlistGamesContainer = document.getElementById('shortlist-games');
+    const layoutSwitcher = document.getElementById('layout-switcher');
+    const gameDetailsModal = new bootstrap.Modal(document.getElementById('game-details-modal'));
 
     // --- Firebase Refs ---
     const db = firebase.firestore();
@@ -39,6 +42,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (navLinks[viewName]) {
             navLinks[viewName].classList.add('active');
         }
+    }
+
+    function applyLayout(layout) {
+        gameCollectionContainer.className = 'row'; // Reset classes
+        gameCollectionContainer.classList.add(`layout-${layout}`);
+        
+        // Update button active state
+        layoutSwitcher.querySelectorAll('button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.layout === layout);
+        });
+
+        // Save preference
+        localStorage.setItem('bgg_layout', layout);
+        currentLayout = layout;
     }
 
     function updateUserNav() {
@@ -125,16 +142,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            let colClass = 'col-xl-3 col-lg-4 col-md-6 col-12'; // Default to large-grid
+            if (currentLayout === 'small-grid') colClass = 'col-xl-2 col-lg-3 col-md-4 col-6';
+            if (currentLayout === 'list') colClass = 'col-12';
+
             snapshot.forEach(doc => {
                 const game = doc.data();
+                const cardLayoutClass = currentLayout === 'list' ? 'list-layout' : '';
                 const gameCard = `
-                    <div class="col-md-3 mb-4">
-                        <div class="card game-card" data-bgg-id="${game.bggId}">
+                    <div class="${colClass} mb-4">
+                        <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
                             <img src="${game.image}" class="card-img-top" alt="${game.name}">
                             <div class="card-body">
                                 <h5 class="card-title">${game.name}</h5>
                                 <p class="card-text">${game.year || ''}</p>
-                                <button class="btn btn-sm btn-primary add-to-shortlist-button">Add to Shortlist</button>
+                                <button class="btn btn-sm btn-primary add-to-shortlist-button">Vote</button>
                             </div>
                         </div>
                     </div>
@@ -218,7 +240,45 @@ document.addEventListener('DOMContentLoaded', () => {
     navLinks.polls.addEventListener('click', (e) => { e.preventDefault(); alert('Polls feature not yet migrated to Firebase.'); });
     navLinks.events.addEventListener('click', (e) => { e.preventDefault(); alert('Events feature not yet migrated to Firebase.'); });
 
-    // Add to Shortlist (from main collection)
+    // Layout Switcher
+    layoutSwitcher.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') {
+            applyLayout(e.target.dataset.layout);
+            fetchAndDisplayGames(); // Re-render the collection with the new layout classes
+        }
+    });
+
+    // Show Game Details Modal
+    gameCollectionContainer.addEventListener('click', async (e) => {
+        const card = e.target.closest('.game-card');
+        // Ignore clicks on the vote button
+        if (card && !e.target.classList.contains('add-to-shortlist-button')) {
+            const bggId = card.dataset.bggId;
+            const gameDoc = await gamesCollectionRef.doc(bggId).get();
+            if (gameDoc.exists) {
+                const game = gameDoc.data();
+                document.getElementById('game-modal-title').textContent = game.name;
+                
+                document.getElementById('game-modal-body').innerHTML = `
+                    <div class="row">
+                        <div class="col-md-4">
+                            <img src="${game.image}" class="img-fluid rounded" alt="${game.name}">
+                        </div>
+                        <div class="col-md-8">
+                            <p><strong>Players:</strong> ${game.minPlayers} - ${game.maxPlayers}</p>
+                            <p><strong>Play Time:</strong> ${game.playingTime} min</p>
+                            <p><strong>Rating:</strong> ${game.rating} / 10</p>
+                            <p><strong>Year Published:</strong> ${game.year || 'N/A'}</p>
+                            <p><strong>BGG ID:</strong> ${game.bggId}</p>
+                        </div>
+                    </div>
+                `;
+                gameDetailsModal.show();
+            }
+        }
+    });
+
+    // Add to Shortlist (Vote)
     gameCollectionContainer.addEventListener('click', async (e) => {
         if (e.target.classList.contains('add-to-shortlist-button')) {
             const card = e.target.closest('.game-card');
@@ -336,7 +396,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUserDisplay();
     if (currentUser) {
         showView('collection');
-        fetchAndDisplayGames(); // Fetch games on initial load
+        applyLayout(currentLayout); // Apply saved layout on load
+        fetchAndDisplayGames();
     } else {
         showView('login');
     }

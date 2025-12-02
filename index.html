@@ -6,7 +6,7 @@
     <title>Board Game Group Planner</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=2.1">
+    <link rel="stylesheet" href="css/style.css?v=2.3">
 </head>
 <body>
 
@@ -40,7 +40,14 @@
 
             <!-- Collection View -->
             <section id="collection-view" class="d-none">
-                <h2>Game Collection</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2>Game Collection</h2>
+                    <div class="btn-group" role="group" id="layout-switcher">
+                        <button type="button" class="btn btn-outline-secondary active" data-layout="large-grid">Large Grid</button>
+                        <button type="button" class="btn btn-outline-secondary" data-layout="small-grid">Small Grid</button>
+                        <button type="button" class="btn btn-outline-secondary" data-layout="list">List</button>
+                    </div>
+                </div>
 
                 <!-- Admin Panel - Only visible to the admin user -->
                 <div id="admin-panel" class="card bg-light p-3 mb-4 d-none">
@@ -49,7 +56,7 @@
                     <ol>
                         <li>
                             <strong>Get BGG File:</strong> 
-                            <a href="https://boardgamegeek.com/xmlapi2/collection?username=leli84&own=1" target="_blank" class="btn btn-secondary btn-sm">Get BGG Collection File</a>
+                            <a href="https://boardgamegeek.com/xmlapi2/collection?username=leli84&own=1&stats=1" target="_blank" class="btn btn-secondary btn-sm">Get BGG Collection File</a>
                             <small class="d-block text-muted">If you see a "processing" message, wait a minute and refresh that page until the XML appears, then save the file.</small>
                         </li>
                         <li class="mt-2">
@@ -151,13 +158,31 @@
         </div>
     </div>
 
+    <!-- Game Details Modal -->
+    <div class="modal fade" id="game-details-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="game-modal-title">Game Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="game-modal-body">
+                    <!-- Game details will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <!-- Placeholder for future actions like 'Add to Poll' -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Use Firebase v8 for simplicity and compatibility -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="js/firebase-config.js?v=2.1"></script>
-    <script src="js/ics.js?v=2.1"></script>
-    <script src="js/bgg.js?v=2.1"></script>
-    <script src="js/app.js?v=2.1"></script>
+    <script src="js/firebase-config.js?v=2.4"></script>
+    <script src="js/ics.js?v=2.4"></script>
+    <script src="js/bgg.js?v=2.4"></script>
+    <script src="js/app.js?v=2.4"></script>
 </body>
 </html>
