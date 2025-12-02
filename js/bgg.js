@@ -1,6 +1,6 @@
 async function fetchBggCollection(username) {
-    // ThingProxy: a reliable free CORS proxy. It fetches the raw URL.
-    const proxyUrl = 'https://thingproxy.freeboard.io/fetch/';
+    // cors.eu.org: a simple and effective CORS proxy
+    const proxyUrl = 'https://cors.eu.org/';
     const bggUrl = `https://boardgamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username)}&own=1`;
     const url = proxyUrl + bggUrl;
 
@@ -15,13 +15,10 @@ async function fetchBggCollection(username) {
             throw new Error(`Proxy HTTP error! status: ${response.status}`);
         }
 
-        // The proxy returns raw XML, so we get it as text.
         const xmlText = await response.text();
-
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, "text/xml");
         
-        // Check for BGG's "please wait" message or other invalid XML
         if (xmlDoc.querySelector('parsererror') || !xmlText.trim().startsWith('<')) {
             if (xmlText.includes("Your request for this collection is being processed")) {
                  throw new Error('BGG is processing the collection. Please try again in a moment.');
