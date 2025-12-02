@@ -1,0 +1,20 @@
+/* Add your custom styles here */
+body {
+    padding-top: 1rem;
+}
+section {
+    margin-bottom: 2rem;
+}
+.game-card {
+    cursor: pointer;
+}
+.game-card:hover {
+    background-color: #f8f9fa;
+}
+.game-card img {
+    height: 200px;
+    object-fit: cover;
+}
+.poll-options .form-check {
+    margin-bottom: 0.5rem;
+}

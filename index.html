@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Board Game Group Planner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div class="container">
+        <header class="d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom">
+            <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none">
+                <span class="fs-4">Board Game Group Planner</span>
+            </a>
+            <ul class="nav nav-pills">
+                <li class="nav-item"><a href="#" class="nav-link active" id="nav-collection">My Collection</a></li>
+                <li class="nav-item"><a href="#" class="nav-link" id="nav-shortlist">Shortlist</a></li>
+                <li class="nav-item"><a href="#" class="nav-link" id="nav-polls">Polls</a></li>
+                <li class="nav-item"><a href="#" class="nav-link" id="nav-events">Events</a></li>
+            </ul>
+            <div id="user-display" class="ms-3"></div>
+        </header>
+
+        <main>
+            <!-- Login View -->
+            <section id="login-view">
+                <h2>Login</h2>
+                <div class="input-group mb-3">
+                    <input type="text" id="username-input" class="form-control" placeholder="Enter your BGG username">
+                    <button class="btn btn-primary" type="button" id="login-button">Login</button>
+                </div>
+            </section>
+
+            <!-- BGG Collection View -->
+            <section id="collection-view" class="d-none">
+                <h2>My BGG Collection</h2>
+                <div class="input-group mb-3">
+                    <input type="text" id="bgg-username-input" class="form-control" placeholder="BGG Username">
+                    <button id="sync-bgg-button" class="btn btn-primary">Sync Collection</button>
+                </div>
+                <div id="bgg-collection" class="row">
+                    <!-- Game cards will be inserted here -->
+                </div>
+            </section>
+
+            <!-- Shortlist View -->
+            <section id="shortlist-view" class="d-none">
+                <h2>Game Shortlist</h2>
+                <div id="shortlist-games" class="row">
+                    <!-- Shortlisted game cards will be inserted here -->
+                </div>
+            </section>
+
+            <!-- Polls View -->
+            <section id="polls-view" class="d-none">
+                <h2>Voting Polls</h2>
+                <button id="create-poll-button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#create-poll-modal">Create New Poll</button>
+                <div id="polls-list">
+                    <!-- Poll cards will be inserted here -->
+                </div>
+            </section>
+
+            <!-- Events View -->
+            <section id="events-view" class="d-none">
+                <h2>Calendar Events</h2>
+                <button id="create-event-button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#create-event-modal">Create New Event</button>
+                <div id="events-list">
+                    <!-- Event cards will be inserted here -->
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Create Poll Modal -->
+    <div class="modal fade" id="create-poll-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Poll</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="poll-title" class="form-label">Poll Title</label>
+                        <input type="text" class="form-control" id="poll-title" placeholder="e.g., Games for this Friday">
+                    </div>
+                    <div class="mb-3">
+                        <label for="poll-games" class="form-label">Games to include (select from shortlist)</label>
+                        <div id="poll-games-options"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="save-poll-button">Create Poll</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Event Modal -->
+    <div class="modal fade" id="create-event-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Event</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="event-title" class="form-label">Event Title</label>
+                        <input type="text" class="form-control" id="event-title" placeholder="e.g., Board Game Night">
+                    </div>
+                    <div class="mb-3">
+                        <label for="event-date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="event-date">
+                    </div>
+                    <div class="mb-3">
+                        <label for="event-time" class="form-label">Time</label>
+                        <input type="time" class="form-control" id="event-time">
+                    </div>
+                    <div class="mb-3">
+                        <label for="event-location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="event-location" placeholder="e.g., My place">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="save-event-button">Create Event</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+    <script src="js/ics.js"></script>
+    <script src="js/bgg.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
