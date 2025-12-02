@@ -42,10 +42,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateUserDisplay() {
         if (currentUser) {
-            userDisplay.textContent = `Logged in as: ${currentUser}`;
+            userDisplay.innerHTML = `
+                <span class="me-2">Logged in as: <strong>${currentUser}</strong></span>
+                <button class="btn btn-sm btn-outline-secondary" id="logout-button">Logout</button>
+            `;
             document.getElementById('bgg-username-input').value = currentUser;
         } else {
-            userDisplay.textContent = 'Not logged in';
+            userDisplay.innerHTML = '<span>Not logged in</span>';
         }
     }
 
@@ -123,6 +126,24 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('bgg_username', username);
             updateUserDisplay();
             showView('collection');
+        }
+    });
+
+    // Logout
+    userDisplay.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'logout-button') {
+            currentUser = null;
+            localStorage.removeItem('bgg_username');
+            // Also clear other session data
+            localStorage.removeItem('bgg_shortlist');
+            localStorage.removeItem('bgg_polls');
+            localStorage.removeItem('bgg_events');
+            shortlist = [];
+            polls = [];
+            events = [];
+            
+            updateUserDisplay();
+            showView('login');
         }
     });
 
@@ -229,118 +250,4 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedGames = [];
         document.querySelectorAll('#poll-games-options input[type=checkbox]:checked').forEach(checkbox => {
             const game = shortlist.find(g => g.bggId === checkbox.value);
-            if (game) {
-                selectedGames.push(game);
-            }
-        });
-
-        if (selectedGames.length === 0) {
-            alert('Please select at least one game for the poll.');
-            return;
-        }
-
-        const newPoll = { title, games: selectedGames };
-        polls.push(newPoll);
-        localStorage.setItem('bgg_polls', JSON.stringify(polls));
-        renderPolls();
-
-        const modal = bootstrap.Modal.getInstance(document.getElementById('create-poll-modal'));
-        modal.hide();
-    });
-
-    // Create Event Modal
-    document.getElementById('create-event-button').addEventListener('click', () => {
-        const modal = new bootstrap.Modal(document.getElementById('create-event-modal'));
-        modal.show();
-    });
-
-    // Save Event
-    document.getElementById('save-event-button').addEventListener('click', () => {
-        const title = document.getElementById('event-title').value.trim();
-        const date = document.getElementById('event-date').value;
-        const time = document.getElementById('event-time').value;
-        const location = document.getElementById('event-location').value.trim();
-
-        if (!title || !date || !time) {
-            alert('Please fill in all event details.');
-            return;
-        }
-
-        const newEvent = { title, date, time, location };
-        events.push(newEvent);
-        localStorage.setItem('bgg_events', JSON.stringify(events));
-        renderEvents();
-
-        const modal = bootstrap.Modal.getInstance(document.getElementById('create-event-modal'));
-        modal.hide();
-    });
-
-    // Event Actions (ICS and Share)
-    document.getElementById('events-list').addEventListener('click', (e) => {
-        const eventIndex = e.target.dataset.eventIndex;
-        if (eventIndex === undefined) return;
-
-        const event = events[eventIndex];
-
-        if (e.target.classList.contains('download-ics-button')) {
-            const cal = ics();
-            cal.addEvent(event.title, `Board game night at ${event.location}`, event.location, `${event.date} ${event.time}`, `${event.date} ${event.time}`);
-            cal.download(event.title);
-        }
-
-        if (e.target.classList.contains('share-event-button')) {
-            const shareData = {
-                title: 'Board Game Night',
-                text: `Let's play board games on ${event.date} at ${event.time} at ${event.location}!`,
-            };
-            if (navigator.share) {
-                navigator.share(shareData)
-                    .then(() => console.log('Successful share'))
-                    .catch((error) => console.log('Error sharing', error));
-            } else {
-                // Fallback for browsers that don't support Web Share API
-                const shareText = `${shareData.title}\n${shareData.text}`;
-                navigator.clipboard.writeText(shareText).then(() => {
-                    alert('Event details copied to clipboard!');
-                });
-            }
-        }
-    });
-
-    // Vote
-    document.getElementById('polls-list').addEventListener('click', (e) => {
-        const pollIndex = e.target.dataset.pollIndex;
-        if (pollIndex === undefined) return;
-
-        const poll = polls[pollIndex];
-
-        if (e.target.classList.contains('vote-button')) {
-            const selectedOption = document.querySelector(`input[name="poll-${pollIndex}"]:checked`);
-            if (!selectedOption) {
-                alert('Please select an option before voting.');
-                return;
-            }
-
-            const selectedGameId = selectedOption.value;
-            const selectedGame = poll.games.find(game => game.bggId === selectedGameId);
-
-            if (selectedGame) {
-                alert(`You voted for ${selectedGame.name} in the poll "${poll.title}"`);
-            } else {
-                alert('Error: Selected game not found in the poll.');
-            }
-        }
-    });
-
-    // Remove from shortlist
-    document.getElementById('shortlist-games').addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-from-shortlist-button')) {
-            const card = e.target.closest('.card');
-            const bggId = card.dataset.bggId;
-            shortlist = shortlist.filter(game => game.bggId !== bggId);
-            localStorage.setItem('bgg_shortlist', JSON.stringify(shortlist));
-            renderShortlist();
-            alert('Game removed from shortlist.');
-        }
-    });
-});
+            if
