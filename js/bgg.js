@@ -1,8 +1,6 @@
 async function fetchBggCollection(username) {
-    // Your personal Cloudflare Worker proxy
-    const proxyUrl = 'https://bgg-proxy.emanuelbartolo.workers.dev/?url='; 
-    const bggUrl = `https://boardgamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username)}&own=1`;
-    const url = proxyUrl + bggUrl;
+    // Your personal Firebase Function proxy
+    const url = `https://us-central1-boardgameapp-cc741.cloudfunctions.net/bggProxy?username=${encodeURIComponent(username)}`;
 
     try {
         const controller = new AbortController();
