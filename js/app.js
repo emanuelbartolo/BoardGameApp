@@ -1,10 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Soft login state
+    // --- App State ---
     let currentUser = localStorage.getItem('bgg_username');
-    let shortlist = JSON.parse(localStorage.getItem('bgg_shortlist')) || [];
-    let polls = JSON.parse(localStorage.getItem('bgg_polls')) || [];
-    let events = JSON.parse(localStorage.getItem('bgg_events')) || [];
+    const adminUser = 'leli84'; // The designated admin
 
+    // --- DOM Elements ---
     const views = {
         login: document.getElementById('login-view'),
         collection: document.getElementById('collection-view'),
@@ -21,6 +20,14 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const userDisplay = document.getElementById('user-display');
+    const adminPanel = document.getElementById('admin-panel');
+    const gameCollectionContainer = document.getElementById('game-collection');
+
+    // --- Firebase Refs ---
+    const db = firebase.firestore();
+    const gamesCollectionRef = db.collection('games');
+
+    // --- Core Functions ---
 
     function showView(viewName) {
         Object.values(views).forEach(view => view.classList.add('d-none'));
@@ -28,15 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(navLinks).forEach(link => link.classList.remove('active'));
         if (navLinks[viewName]) {
             navLinks[viewName].classList.add('active');
-        }
-        if (viewName === 'shortlist') {
-            renderShortlist();
-        }
-        if (viewName === 'polls') {
-            renderPolls();
-        }
-        if (viewName === 'events') {
-            renderEvents();
         }
     }
 
@@ -46,142 +44,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="me-2">Logged in as: <strong>${currentUser}</strong></span>
                 <button class="btn btn-sm btn-outline-secondary" id="logout-button">Logout</button>
             `;
-            document.getElementById('bgg-username-input').value = currentUser;
+            // Show admin panel if the current user is the admin
+            if (currentUser === adminUser) {
+                adminPanel.classList.remove('d-none');
+            } else {
+                adminPanel.classList.add('d-none');
+            }
         } else {
             userDisplay.innerHTML = '<span>Not logged in</span>';
+            adminPanel.classList.add('d-none');
         }
     }
 
-    function renderShortlist() {
-        const shortlistContainer = document.getElementById('shortlist-games');
-        shortlistContainer.innerHTML = '';
-        shortlist.forEach(game => {
-            const gameCard = `
-                <div class="col-md-3 mb-4">
-                    <div class="card" data-bgg-id="${game.bggId}">
-                        <img src="${game.image}" class-img-top" alt="${game.name}">
-                        <div class="card-body">
-                            <h5 class="card-title">${game.name}</h5>
-                            <p class="card-text">${game.year || ''}</p>
-                            <button class="btn btn-sm btn-danger remove-from-shortlist-button">Remove</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            shortlistContainer.insertAdjacentHTML('beforeend', gameCard);
-        });
-    }
-
-    function renderPolls() {
-        const pollsListContainer = document.getElementById('polls-list');
-        pollsListContainer.innerHTML = '';
-        polls.forEach((poll, index) => {
-            const pollCard = `
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h5 class="card-title">${poll.title}</h5>
-                        <div class="poll-options">
-                            ${poll.games.map(game => `
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="poll-${index}" id="poll-${index}-game-${game.bggId}" value="${game.bggId}">
-                                    <label class="form-check-label" for="poll-${index}-game-${game.bggId}">
-                                        ${game.name}
-                                    </label>
-                                </div>
-                            `).join('')}
-                        </div>
-                        <button class="btn btn-sm btn-primary mt-2 vote-button" data-poll-index="${index}">Vote</button>
-                    </div>
-                </div>
-            `;
-            pollsListContainer.insertAdjacentHTML('beforeend', pollCard);
-        });
-    }
-
-    function renderEvents() {
-        const eventsListContainer = document.getElementById('events-list');
-        eventsListContainer.innerHTML = '';
-        events.forEach((event, index) => {
-            const eventCard = `
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h5 class="card-title">${event.title}</h5>
-                        <p class="card-text"><strong>Date:</strong> ${event.date}</p>
-                        <p class="card-text"><strong>Time:</strong> ${event.time}</p>
-                        <p class="card-text"><strong>Location:</strong> ${event.location}</p>
-                        <button class="btn btn-sm btn-secondary download-ics-button" data-event-index="${index}">Download .ics</button>
-                        <button class="btn btn-sm btn-info share-event-button" data-event-index="${index}">Share</button>
-                    </div>
-                </div>
-            `;
-            eventsListContainer.insertAdjacentHTML('beforeend', eventCard);
-        });
-    }
-
-    // Login
-    document.getElementById('login-button').addEventListener('click', () => {
-        const username = document.getElementById('username-input').value.trim();
-        if (username) {
-            currentUser = username;
-            localStorage.setItem('bgg_username', username);
-            updateUserDisplay();
-            showView('collection');
-        }
-    });
-
-    // Logout
-    userDisplay.addEventListener('click', (e) => {
-        if (e.target && e.target.id === 'logout-button') {
-            currentUser = null;
-            localStorage.removeItem('bgg_username');
-            // Also clear other session data
-            localStorage.removeItem('bgg_shortlist');
-            localStorage.removeItem('bgg_polls');
-            localStorage.removeItem('bgg_events');
-            shortlist = [];
-            polls = [];
-            events = [];
-            
-            updateUserDisplay();
-            showView('login');
-        }
-    });
-
-    // Navigation
-    navLinks.collection.addEventListener('click', (e) => { e.preventDefault(); showView('collection'); });
-    navLinks.shortlist.addEventListener('click', (e) => { e.preventDefault(); showView('shortlist'); });
-    navLinks.polls.addEventListener('click', (e) => { e.preventDefault(); showView('polls'); });
-    navLinks.events.addEventListener('click', (e) => { e.preventDefault(); showView('events'); });
-
-    // Initial state
-    updateUserDisplay();
-    if (currentUser) {
-        showView('collection');
-    } else {
-        showView('login');
-    }
-
-    // BGG Collection Sync
-    document.getElementById('sync-bgg-button').addEventListener('click', async () => {
-        const username = document.getElementById('bgg-username-input').value.trim();
-        if (!username) {
-            alert('Please enter a BGG username.');
-            return;
-        }
+    async function fetchAndDisplayGames() {
+        gameCollectionContainer.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
         
-        const collectionContainer = document.getElementById('bgg-collection');
-        collectionContainer.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>'; // Loading spinner
-
         try {
-            const games = await fetchBggCollection(username);
-            collectionContainer.innerHTML = ''; // Clear spinner
-
-            if (games.length === 0) {
-                collectionContainer.innerHTML = '<p>No games found in collection.</p>';
+            const snapshot = await gamesCollectionRef.orderBy('name').get();
+            gameCollectionContainer.innerHTML = ''; // Clear spinner
+            
+            if (snapshot.empty) {
+                gameCollectionContainer.innerHTML = '<p>No games in the collection yet. The admin needs to upload a BGG collection file.</p>';
                 return;
             }
 
-            games.forEach(game => {
+            snapshot.forEach(doc => {
+                const game = doc.data();
                 const gameCard = `
                     <div class="col-md-3 mb-4">
                         <div class="card game-card" data-bgg-id="${game.bggId}">
@@ -194,161 +82,105 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 `;
-                collectionContainer.insertAdjacentHTML('beforeend', gameCard);
+                gameCollectionContainer.insertAdjacentHTML('beforeend', gameCard);
             });
         } catch (error) {
-            collectionContainer.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+            console.error("Error fetching games from Firebase:", error);
+            gameCollectionContainer.innerHTML = '<p class="text-danger">Could not fetch game collection from Firebase.</p>';
+        }
+    }
+
+    // --- Event Listeners ---
+
+    // Login
+    document.getElementById('login-button').addEventListener('click', () => {
+        const username = document.getElementById('username-input').value.trim();
+        if (username) {
+            currentUser = username;
+            localStorage.setItem('bgg_username', username);
+            updateUserDisplay();
+            showView('collection');
+            fetchAndDisplayGames(); // Fetch games on login
         }
     });
 
-    // Add to shortlist
-    document.getElementById('bgg-collection').addEventListener('click', (e) => {
-        if (e.target.classList.contains('add-to-shortlist-button')) {
-            const card = e.target.closest('.game-card');
-            const game = {
-                bggId: card.dataset.bggId,
-                name: card.querySelector('.card-title').textContent,
-                year: card.querySelector('.card-text').textContent,
-                image: card.querySelector('img').src,
-            };
-
-            if (!shortlist.find(g => g.bggId === game.bggId)) {
-                shortlist.push(game);
-                localStorage.setItem('bgg_shortlist', JSON.stringify(shortlist));
-                alert(`${game.name} added to shortlist!`);
-            } else {
-                alert(`${game.name} is already on the shortlist.`);
-            }
+    // Logout
+    userDisplay.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'logout-button') {
+            currentUser = null;
+            localStorage.removeItem('bgg_username');
+            updateUserDisplay();
+            showView('login');
+            gameCollectionContainer.innerHTML = ''; // Clear the games list on logout
         }
     });
 
-    // Create Poll Modal
-    document.getElementById('create-poll-button').addEventListener('click', () => {
-        const pollGamesOptions = document.getElementById('poll-games-options');
-        pollGamesOptions.innerHTML = '';
-        shortlist.forEach(game => {
-            const option = `
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" value="${game.bggId}" id="game-${game.bggId}">
-                    <label class="form-check-label" for="game-${game.bggId}">
-                        ${game.name}
-                    </label>
-                </div>
-            `;
-            pollGamesOptions.insertAdjacentHTML('beforeend', option);
-        });
-    });
+    // Navigation
+    navLinks.collection.addEventListener('click', (e) => { e.preventDefault(); showView('collection'); });
+    // Note: Shortlist, Polls, and Events still use localStorage and would need to be refactored to use Firebase
+    // for a fully multi-user experience.
+    navLinks.shortlist.addEventListener('click', (e) => { e.preventDefault(); alert('Shortlist feature not yet migrated to Firebase.'); });
+    navLinks.polls.addEventListener('click', (e) => { e.preventDefault(); alert('Polls feature not yet migrated to Firebase.'); });
+    navLinks.events.addEventListener('click', (e) => { e.preventDefault(); alert('Events feature not yet migrated to Firebase.'); });
 
-    // Save Poll
-    document.getElementById('save-poll-button').addEventListener('click', () => {
-        const title = document.getElementById('poll-title').value.trim();
-        if (!title) {
-            alert('Please enter a poll title.');
+    // Admin: Upload Collection
+    document.getElementById('upload-collection-button').addEventListener('click', () => {
+        const fileInput = document.getElementById('xml-file-input');
+        const statusDiv = document.getElementById('upload-status');
+        
+        if (fileInput.files.length === 0) {
+            statusDiv.innerHTML = '<p class="text-danger">Please select a file first.</p>';
             return;
         }
 
-        const selectedGames = [];
-        document.querySelectorAll('#poll-games-options input[type=checkbox]:checked').forEach(checkbox => {
-            const game = shortlist.find(g => g.bggId === checkbox.value);
-            if (game) {
-                selectedGames.push(game);
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = async (e) => {
+            try {
+                statusDiv.innerHTML = '<p class="text-info">Parsing XML...</p>';
+                const games = parseBggXml(e.target.result);
+                
+                statusDiv.innerHTML = `<p class="text-info">Found ${games.length} games. Deleting old collection from Firebase...</p>`;
+                
+                // To delete the old collection, we must fetch all documents and delete them.
+                const oldGamesSnapshot = await gamesCollectionRef.get();
+                const batchDelete = db.batch();
+                oldGamesSnapshot.forEach(doc => batchDelete.delete(doc.ref));
+                await batchDelete.commit();
+
+                statusDiv.innerHTML = `<p class="text-info">Uploading ${games.length} new games to Firebase...</p>`;
+
+                // Upload new collection in a new batch to avoid exceeding limits.
+                const batchWrite = db.batch();
+                games.forEach(game => {
+                    const docRef = gamesCollectionRef.doc(game.bggId); // Use BGG ID as the document ID
+                    batchWrite.set(docRef, game);
+                });
+                await batchWrite.commit();
+
+                statusDiv.innerHTML = '<p class="text-success">Collection uploaded successfully!</p>';
+                fetchAndDisplayGames(); // Refresh the view with the new data
+
+            } catch (error) {
+                console.error("Upload error:", error);
+                statusDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
             }
-        });
-
-        if (selectedGames.length === 0) {
-            alert('Please select at least one game for the poll.');
-            return;
-        }
-
-        const newPoll = {
-            title,
-            games: selectedGames,
         };
 
-        polls.push(newPoll);
-        localStorage.setItem('bgg_polls', JSON.stringify(polls));
-        alert('Poll saved!');
-        showView('polls');
+        reader.onerror = () => {
+            statusDiv.innerHTML = '<p class="text-danger">Failed to read the file.</p>';
+        };
+
+        reader.readAsText(file);
     });
 
-    // Vote on Poll
-    document.getElementById('polls-list').addEventListener('click', (e) => {
-        if (e.target.classList.contains('vote-button')) {
-            const pollIndex = e.target.dataset.pollIndex;
-            const poll = polls[pollIndex];
-
-            const selectedOption = Array.from(document.getElementsByName(`poll-${pollIndex}`)).find(radio => radio.checked);
-            if (!selectedOption) {
-                alert('Please select an option before voting.');
-                return;
-            }
-
-            const selectedGameId = selectedOption.value;
-            const selectedGame = poll.games.find(game => game.bggId === selectedGameId);
-
-            if (selectedGame) {
-                alert(`You voted for ${selectedGame.name} in the poll "${poll.title}"`);
-            } else {
-                alert('Error: Game not found in poll.');
-            }
-        }
-    });
-
-    // Download ICS
-    document.getElementById('events-list').addEventListener('click', (e) => {
-        if (e.target.classList.contains('download-ics-button')) {
-            const eventIndex = e.target.dataset.eventIndex;
-            const event = events[eventIndex];
-
-            const icsContent = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-SUMMARY:${event.title}
-DTSTART:${event.date}T${event.time}
-LOCATION:${event.location}
-DESCRIPTION:BGG Event
-END:VEVENT
-END:VCALENDAR`;
-
-            const blob = new Blob([icsContent], { type: 'text/calendar' });
-            const url = URL.createObjectURL(blob);
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${event.title}.ics`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-    });
-
-    // Share Event
-    document.getElementById('events-list').addEventListener('click', (e) => {
-        if (e.target.classList.contains('share-event-button')) {
-            const eventIndex = e.target.dataset.eventIndex;
-            const event = events[eventIndex];
-
-            const shareData = {
-                title: event.title,
-                text: `Join me for ${event.title} on ${event.date} at ${event.time}. Location: ${event.location}`,
-                url: window.location.href,
-            };
-
-            navigator.share(shareData)
-                .then(() => console.log('Event shared successfully'))
-                .catch(err => console.error('Error sharing event:', err));
-        }
-    });
-
-    // Remove from shortlist
-    document.getElementById('shortlist-games').addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-from-shortlist-button')) {
-            const card = e.target.closest('.card');
-            const bggId = card.dataset.bggId;
-            shortlist = shortlist.filter(game => game.bggId !== bggId);
-            localStorage.setItem('bgg_shortlist', JSON.stringify(shortlist));
-            renderShortlist();
-        }
-    });
+    // --- App Initialization ---
+    updateUserDisplay();
+    if (currentUser) {
+        showView('collection');
+        fetchAndDisplayGames(); // Fetch games on initial load
+    } else {
+        showView('login');
+    }
 });
