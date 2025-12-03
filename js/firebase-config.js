@@ -12,5 +12,10 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase (v9 compat)
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+try {
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+} catch (error) {
+  console.error("Firebase initialization error:", error);
+  alert("Firebase could not be initialized. Please check your console for details.");
+}

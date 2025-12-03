@@ -7,20 +7,29 @@ document.addEventListener('DOMContentLoaded', () => {
     let showOnlyFavorites = false; // whether to filter collection to only favorites
 
     // --- DOM Elements ---
+    // --- DOM Elements ---
+    const getElement = (id) => {
+        const el = document.getElementById(id);
+        if (!el) {
+            console.error(`Error: Element with ID '${id}' not found.`);
+        }
+        return el;
+    };
+
     const views = {
-        login: document.getElementById('login-view'),
-        collection: document.getElementById('collection-view'),
-        shortlist: document.getElementById('shortlist-view'),
-        events: document.getElementById('events-view'),
-        admin: document.getElementById('admin-view'),
+        login: getElement('login-view'),
+        collection: getElement('collection-view'),
+        shortlist: getElement('shortlist-view'),
+        events: getElement('events-view'),
+        admin: getElement('admin-view'),
     };
 
     const navLinks = {
-        collection: document.getElementById('nav-collection'),
-        shortlist: document.getElementById('nav-shortlist'),
-        events: document.getElementById('nav-events'),
-        admin: document.getElementById('nav-admin'),
-        login: document.getElementById('nav-login'),
+        collection: getElement('nav-collection'),
+        shortlist: getElement('nav-shortlist'),
+        events: getElement('nav-events'),
+        admin: getElement('nav-admin'),
+        login: getElement('nav-login'),
     };
 
     const userDisplay = document.getElementById('user-display');
@@ -43,9 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Core Functions ---
 
     function showView(viewName) {
-        Object.values(views).forEach(view => view.classList.add('d-none'));
-        views[viewName].classList.remove('d-none');
-        Object.values(navLinks).forEach(link => link.classList.remove('active'));
+        Object.values(views).forEach(view => view && view.classList.add('d-none'));
+        if (views[viewName]) {
+            views[viewName].classList.remove('d-none');
+        }
+        Object.values(navLinks).forEach(link => link && link.classList.remove('active'));
         if (navLinks[viewName]) {
             navLinks[viewName].classList.add('active');
         }
@@ -100,22 +111,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="btn btn-sm btn-outline-secondary" id="logout-button">Logout</button>
             `;
             // Show admin panel if the current user is the admin
-            if (currentUser === adminUser) {
-                adminPanel.classList.remove('d-none');
-                // Load admin wishlist summary
-                loadWishlistSummary();
-            } else {
-                adminPanel.classList.add('d-none');
+            if (adminPanel) {
+                if (currentUser === adminUser) {
+                    adminPanel.classList.remove('d-none');
+                    // Load admin wishlist summary
+                    loadWishlistSummary();
+                } else {
+                    adminPanel.classList.add('d-none');
+                }
             }
             // Show wishlist filter to logged-in users
-            wishlistFilterButton.classList.remove('d-none');
+            if (wishlistFilterButton) {
+                wishlistFilterButton.classList.remove('d-none');
+            }
             // Show create-event button for logged-in users
             const createEventBtn = document.getElementById('create-event-button');
             if (createEventBtn) createEventBtn.classList.remove('d-none');
         } else {
             userDisplay.innerHTML = '<span>Not logged in</span>';
-            adminPanel.classList.add('d-none');
-            wishlistFilterButton.classList.add('d-none');
+            if (adminPanel) {
+                adminPanel.classList.add('d-none');
+            }
+            if (wishlistFilterButton) {
+                wishlistFilterButton.classList.add('d-none');
+            }
             const createEventBtn = document.getElementById('create-event-button');
             if (createEventBtn) createEventBtn.classList.add('d-none');
         }
@@ -242,8 +261,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const removeBtn = (currentUser === adminUser) ? `<button class="btn btn-sm btn-outline-danger ms-2 remove-shortlist-button" data-bgg-id="${game.bggId}">Remove</button>` : '';
 
                 const gameCard = `
-                    <div class="col-md-3 mb-4">
-                        <div class="card" data-bgg-id="${game.bggId}">
+                    <div class="col-12 mb-4">
+                        <div class="card game-card list-layout" data-bgg-id="${game.bggId}">
                             <img src="${game.image}" class="card-img-top" alt="${game.name}">
                             <div class="card-body">
                                 <h5 class="card-title">${game.name}</h5>
