@@ -315,7 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const game = gameDoc.data();
 
-        const prompt = `You are a board game enthusiast explaining a game to friends. Provide a short, fun, and easy-to-understand summary of the board game "${game.name}". Focus on the theme and what players do in the game. Keep it to 2-3 sentences.`;
+        const prompt = `You are a board game support bot. Provide a short, factual, and easy-to-understand summary of the board game "${game.name}". Focus on the theme and what players do mechanically in the game. Keep it to 2-3 sentences.`;
 
         try {
             const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
