@@ -40,15 +40,6 @@
 
             <!-- Collection View -->
             <section id="collection-view" class="d-none">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2>Game Collection</h2>
-                    <div class="btn-group" role="group" id="layout-switcher">
-                        <button type="button" class="btn btn-outline-secondary active" data-layout="large-grid">Large Grid</button>
-                        <button type="button" class="btn btn-outline-secondary" data-layout="small-grid">Small Grid</button>
-                        <button type="button" class="btn btn-outline-secondary" data-layout="list">List</button>
-                    </div>
-                </div>
-
                 <!-- Admin Panel - Only visible to the admin user -->
                 <div id="admin-panel" class="card bg-light p-3 mb-4 d-none">
                     <h4>Admin Controls</h4>
@@ -68,6 +59,25 @@
                         </li>
                     </ol>
                     <div id="upload-status" class="mt-2"></div>
+                </div>
+
+                <!-- API Settings -->
+                <div class="card bg-light p-3 mb-4">
+                    <h4>API Settings</h4>
+                    <p>Save your OpenRouter API key to enable AI features. The key is stored only in your browser.</p>
+                    <div class="input-group">
+                        <input type="password" id="api-key-input" class="form-control" placeholder="Paste your OpenRouter API key">
+                        <button id="save-api-key-button" class="btn btn-primary">Save Key</button>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2>Game Collection</h2>
+                    <div class="btn-group" role="group" id="layout-switcher">
+                        <button type="button" class="btn btn-outline-secondary active" data-layout="large-grid">Large Grid</button>
+                        <button type="button" class="btn btn-outline-secondary" data-layout="small-grid">Small Grid</button>
+                        <button type="button" class="btn btn-outline-secondary" data-layout="list">List</button>
+                    </div>
                 </div>
 
                 <div id="game-collection" class="row">
@@ -170,7 +180,7 @@
                     <!-- Game details will be loaded here -->
                 </div>
                 <div class="modal-footer">
-                    <!-- Placeholder for future actions like 'Add to Poll' -->
+                    <button id="ai-summary-button" class="btn btn-info">Generate AI Summary</button>
                 </div>
             </div>
         </div>

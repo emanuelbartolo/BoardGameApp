@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shortlistGamesContainer = document.getElementById('shortlist-games');
     const layoutSwitcher = document.getElementById('layout-switcher');
     const gameDetailsModal = new bootstrap.Modal(document.getElementById('game-details-modal'));
+    let currentlySelectedBggId = null; // To track which game is in the modal
 
     // --- Firebase Refs ---
     const db = firebase.firestore();
@@ -253,8 +254,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = e.target.closest('.game-card');
         // Ignore clicks on the vote button
         if (card && !e.target.classList.contains('add-to-shortlist-button')) {
-            const bggId = card.dataset.bggId;
-            const gameDoc = await gamesCollectionRef.doc(bggId).get();
+            currentlySelectedBggId = card.dataset.bggId; // Store the ID
+            const gameDoc = await gamesCollectionRef.doc(currentlySelectedBggId).get();
             if (gameDoc.exists) {
                 const game = gameDoc.data();
                 document.getElementById('game-modal-title').textContent = game.name;
@@ -270,6 +271,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <p><strong>Rating:</strong> ${game.rating} / 10</p>
                             <p><strong>Year Published:</strong> ${game.year || 'N/A'}</p>
                             <p><strong>BGG ID:</strong> ${game.bggId}</p>
+                            <hr>
+                            <div id="ai-summary-container"></div>
                         </div>
                     </div>
                 `;
@@ -277,6 +280,72 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // --- API and AI Functions ---
+
+    // Save API Key
+    document.getElementById('save-api-key-button').addEventListener('click', () => {
+        const apiKey = document.getElementById('api-key-input').value.trim();
+        if (apiKey) {
+            localStorage.setItem('openrouter_api_key', apiKey);
+            alert('API Key saved successfully!');
+            document.getElementById('api-key-input').value = '';
+        } else {
+            alert('Please enter an API key.');
+        }
+    });
+
+    // Generate AI Summary
+    document.getElementById('ai-summary-button').addEventListener('click', async () => {
+        const apiKey = localStorage.getItem('openrouter_api_key');
+        if (!apiKey) {
+            alert('Please save your OpenRouter API key in the Admin Controls section first.');
+            return;
+        }
+
+        if (!currentlySelectedBggId) return;
+
+        const summaryContainer = document.getElementById('ai-summary-container');
+        summaryContainer.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Generating...</span></div>';
+
+        const gameDoc = await gamesCollectionRef.doc(currentlySelectedBggId).get();
+        if (!gameDoc.exists) {
+            summaryContainer.innerHTML = '<p class="text-danger">Could not find game data.</p>';
+            return;
+        }
+        const game = gameDoc.data();
+
+        const prompt = `You are a board game enthusiast explaining a game to friends. Provide a short, fun, and easy-to-understand summary of the board game "${game.name}". Focus on the theme and what players do in the game. Keep it to 2-3 sentences.`;
+
+        try {
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${apiKey}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    "model": "google/gemma-3-27b-it:free", // A fast and cheap model
+                    "messages": [
+                        { "role": "user", "content": prompt }
+                    ]
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`OpenRouter API error! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const summary = data.choices[0].message.content;
+            summaryContainer.innerHTML = `<p><strong>AI Summary:</strong> ${summary}</p>`;
+
+        } catch (error) {
+            console.error("AI Summary Error:", error);
+            summaryContainer.innerHTML = `<p class="text-danger">Failed to generate AI summary. Check the console for details.</p>`;
+        }
+    });
+
 
     // Add to Shortlist (Vote)
     gameCollectionContainer.addEventListener('click', async (e) => {
