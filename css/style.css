@@ -51,3 +51,56 @@ section {
     font-size: 0.75rem;
     padding: 0.1rem 0.4rem;
 }
+
+/* Vote button styles: default white, becomes blue when 'voted' class is present */
+.btn-vote {
+    background-color: #ffffff;
+    color: #212529;
+    border: 1px solid #ced4da;
+    box-shadow: none;
+}
+.btn-vote:hover {
+    background-color: #f8f9fa;
+}
+.btn-vote.voted {
+    background-color: var(--bs-primary);
+    color: #fff;
+    border-color: var(--bs-primary);
+}
+.btn-vote:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.25);
+}
+/* Admin-created shortlist highlight (not counted as a vote) */
+.btn-vote.shortlisted {
+    background-color: #e9f4ff;
+    color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+/* Favorite star button: solid yellow background when active */
+.favorite-toggle {
+    transition: background-color 0.2s ease;
+}
+.favorite-toggle.active {
+    background-color: #ffc107;
+    border-color: #ffc107;
+}
+
+/* Login View Styles */
+#login-view {
+    max-width: 400px;
+    margin: 2rem auto;
+    padding: 2rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    background-color: #f8f9fa;
+}
+#login-view h2 {
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+#login-button {
+    width: 100%;
+    margin-top: 1rem;
+}
+
