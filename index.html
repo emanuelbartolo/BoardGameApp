@@ -33,8 +33,12 @@
             <!-- Login View -->
             <section id="login-view">
                 <h2>Login</h2>
-                <div class="input-group mb-3">
-                    <input type="text" id="username-input" class="form-control" placeholder="Enter your username">
+                <div class="mb-3">
+                    <label for="username-input" class="form-label">Enter your username or select existing</label>
+                    <input type="text" id="username-input" class="form-control mb-2" placeholder="Enter new username">
+                    <select id="existing-users-dropdown" class="form-select d-none">
+                        <option value="">--- Select existing user ---</option>
+                    </select>
                 </div>
                 <div class="input-group mb-3 d-none" id="password-field">
                     <input type="password" id="password-input" class="form-control" placeholder="Enter admin password">
@@ -46,9 +50,9 @@
             <section id="collection-view" class="d-none">
                 <!-- Collection header and list (admin controls moved to Admin view) -->
 
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="mb-3">
                     <h2>Game Collection</h2>
-                    <div class="d-flex align-items-center">
+                    <div class="d-flex justify-content-between align-items-center mt-2">
                         <div class="btn-group me-2" role="group" id="layout-switcher">
                             <button type="button" class="btn btn-outline-secondary active" data-layout="large-grid">Large Grid</button>
                             <button type="button" class="btn btn-outline-secondary" data-layout="small-grid">Small Grid</button>
@@ -101,6 +105,13 @@
                         <button id="save-api-key-button" class="btn btn-primary">Save Key</button>
                     </div>
                 </div>
+
+                <!-- User Management (Admin-only) -->
+                <div class="card bg-light p-3 mb-4">
+                    <h4>User Management</h4>
+                    <p>Manage registered users. Deleting a user will also remove their associated data (favorites, poll votes).</p>
+                    <div id="user-list-container" class="list-group"></div>
+                </div>
             </section>
 
             <!-- Polls feature removed -->
@@ -110,12 +121,14 @@
                 <h2>Calendar Events</h2>
                 <button id="create-event-button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#create-event-modal">Create New Event</button>
                 <div id="events-list"></div>
+
+                <h2 class="mt-5">Event Date Polls</h2>
+                <button id="create-poll-button" class="btn btn-success mb-3 d-none" data-bs-toggle="modal" data-bs-target="#create-poll-modal">Create New Poll</button>
+                <div id="polls-list"></div>
             </section>
 
         </main>
     </div>
-
-    <!-- Polls modal removed -->
 
     <!-- Create Event Modal -->
     <div class="modal fade" id="create-event-modal" tabindex="-1">
@@ -146,6 +159,32 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="button" class="btn btn-primary" id="save-event-button">Create Event</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Poll Modal -->
+    <div class="modal fade" id="create-poll-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Poll</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="poll-title" class="form-label">Poll Title</label>
+                        <input type="text" class="form-control" id="poll-title" placeholder="e.g., Next Game Night Date">
+                    </div>
+                    <div id="poll-options-container">
+                        <!-- Date options will be added here dynamically -->
+                    </div>
+                    <button class="btn btn-secondary btn-sm mt-2" id="add-poll-option">Add Date Option</button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="save-poll-button">Create Poll</button>
                 </div>
             </div>
         </div>

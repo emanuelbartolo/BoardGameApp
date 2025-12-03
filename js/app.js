@@ -48,6 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const shortlistCollectionRef = db.collection('shortlist');
     const userWishlistsCollectionRef = db.collection('user_wishlists');
     const eventsCollectionRef = db.collection('events');
+    const pollsCollectionRef = db.collection('polls'); // New: polls collection
+    const usersCollectionRef = db.collection('users'); // New: users collection
 
     // --- Core Functions ---
 
@@ -60,7 +62,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (navLinks[viewName]) {
             navLinks[viewName].classList.add('active');
         }
+
+        // Special handling for login view: ensure usernames are fetched
+        if (viewName === 'login') {
+            fetchUsernames();
+        }
     }
+
+    const createPollButton = getElement('create-poll-button');
+    const pollsListContainer = getElement('polls-list');
+    const addPollOptionButton = getElement('add-poll-option');
+    const savePollButton = getElement('save-poll-button');
+    const pollOptionsContainer = getElement('poll-options-container');
+    const createPollModal = new bootstrap.Modal(getElement('create-poll-modal'));
+
+    // New login elements
+    const usernameInput = getElement('username-input');
+    const existingUsersDropdown = getElement('existing-users-dropdown');
+
+    // User management elements
+    const userListContainer = getElement('user-list-container');
 
     function applyLayout(layout) {
         gameCollectionContainer.className = 'row'; // Reset classes
@@ -116,6 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     adminPanel.classList.remove('d-none');
                     // Load admin wishlist summary
                     loadWishlistSummary();
+                    // Load users for admin to manage
+                    fetchAndDisplayUsers();
                 } else {
                     adminPanel.classList.add('d-none');
                 }
@@ -127,6 +150,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show create-event button for logged-in users
             const createEventBtn = document.getElementById('create-event-button');
             if (createEventBtn) createEventBtn.classList.remove('d-none');
+            // Show create-poll button only to admin
+            if (createPollButton) {
+                if (currentUser === adminUser) {
+                    createPollButton.classList.remove('d-none');
+                } else {
+                    createPollButton.classList.add('d-none');
+                }
+            }
         } else {
             userDisplay.innerHTML = '<span>Not logged in</span>';
             if (adminPanel) {
@@ -137,6 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const createEventBtn = document.getElementById('create-event-button');
             if (createEventBtn) createEventBtn.classList.add('d-none');
+            if (createPollButton) createPollButton.classList.add('d-none');
         }
         updateUserNav(); // Update nav visibility along with user display
     }
@@ -357,35 +389,74 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Event Listeners ---
 
     // Show password field if admin username is typed
-    document.getElementById('username-input').addEventListener('input', (e) => {
-        const passwordField = document.getElementById('password-field');
-        if (e.target.value.toLowerCase() === adminUser) {
-            passwordField.classList.remove('d-none');
-        } else {
-            passwordField.classList.add('d-none');
+    usernameInput.addEventListener('input', (e) => {
+        const passwordField = getElement('password-field');
+        if (passwordField) {
+            if (e.target.value.toLowerCase() === adminUser) {
+                passwordField.classList.remove('d-none');
+            } else {
+                passwordField.classList.add('d-none');
+            }
+        }
+        // Reset dropdown if user starts typing a new name
+        if (existingUsersDropdown) {
+            existingUsersDropdown.value = '';
         }
     });
 
+    // Handle dropdown selection
+    if (existingUsersDropdown) {
+        existingUsersDropdown.addEventListener('change', (e) => {
+            if (e.target.value) {
+                usernameInput.value = e.target.value; // Populate text input with selected name
+                const passwordField = getElement('password-field');
+                if (passwordField) {
+                    if (e.target.value.toLowerCase() === adminUser) {
+                        passwordField.classList.remove('d-none');
+                    } else {
+                        passwordField.classList.add('d-none');
+                    }
+                }
+            } else {
+                usernameInput.value = ''; // Clear text input if 'Select existing user' is chosen
+            }
+        });
+    }
+
     // Login
     document.getElementById('login-button').addEventListener('click', async () => {
-        const username = document.getElementById('username-input').value.trim();
+        let username = usernameInput.value.trim();
+        
+        // If no username typed, check if one was selected from dropdown
+        if (!username && existingUsersDropdown && existingUsersDropdown.value) {
+            username = existingUsersDropdown.value;
+        }
+
         if (!username) {
-            alert("Please enter a username.");
+            alert("Please enter a username or select an existing one.");
             return;
         }
 
         // Admin Login
         if (username.toLowerCase() === adminUser) {
-            // IMPORTANT: This is a simple, hardcoded password for demonstration.
-            // For a real application, use a secure authentication system like Firebase Auth.
-            const password = document.getElementById('password-input').value;
-            if (password === 'bgg') { // You can change this password
+            const password = getElement('password-input').value;
+            if (password === 'bgg') { 
                 currentUser = adminUser;
                 localStorage.setItem('bgg_username', adminUser);
                 updateUserDisplay();
                 showView('collection');
                 await loadUserWishlist();
                 fetchAndDisplayGames();
+                // Ensure admin user is also in the users collection
+                try {
+                    const userDoc = await usersCollectionRef.doc(adminUser).get();
+                    if (!userDoc.exists) {
+                        await usersCollectionRef.doc(adminUser).set({ createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        fetchUsernames(); // Refresh dropdown with admin user
+                    }
+                } catch (err) {
+                    console.error('Error saving admin user to users collection:', err);
+                }
             } else {
                 alert('Incorrect admin password.');
             }
@@ -399,6 +470,17 @@ document.addEventListener('DOMContentLoaded', () => {
         showView('collection');
         await loadUserWishlist();
         fetchAndDisplayGames();
+
+        // Save new user to Firebase if they don't already exist
+        try {
+            const userDoc = await usersCollectionRef.doc(username).get();
+            if (!userDoc.exists) {
+                await usersCollectionRef.doc(username).set({ createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                fetchUsernames(); // Refresh dropdown with new user
+            }
+        } catch (err) {
+            console.error('Error saving new user:', err);
+        }
     });
 
     // Logout
@@ -632,7 +714,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.classList.contains('remove-shortlist-button')) return;
         if (currentUser !== adminUser) { alert('Only the admin can remove items from the shortlist.'); return; }
         const bggId = e.target.dataset.bggId;
-        if (!confirm('Remove this game from the shortlist?')) return;
         try {
             await shortlistCollectionRef.doc(bggId).delete();
             alert('Removed from shortlist.');
@@ -788,7 +869,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('events-list').addEventListener('click', async (e) => {
             if (e.target.classList.contains('remove-event-button')) {
                 const id = e.target.dataset.id;
-                if (!confirm('Delete this event?')) return;
                 try {
                     await eventsCollectionRef.doc(id).delete();
                 } catch (err) {
@@ -798,6 +878,282 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+    // Polls: Add Date Option
+    addPollOptionButton.addEventListener('click', () => {
+        const optionCount = pollOptionsContainer.children.length;
+        const inputGroup = document.createElement('div');
+        inputGroup.classList.add('input-group', 'mb-2');
+        inputGroup.innerHTML = `
+            <input type="date" class="form-control poll-date-input" placeholder="Date option">
+            <button class="btn btn-outline-danger remove-poll-option" type="button">-</button>
+        `;
+        pollOptionsContainer.appendChild(inputGroup);
+
+        // Add event listener for removing option
+        inputGroup.querySelector('.remove-poll-option').addEventListener('click', (e) => {
+            e.target.closest('.input-group').remove();
+        });
+    });
+
+    // Polls: Create Poll
+    savePollButton.addEventListener('click', async () => {
+        if (!currentUser || currentUser !== adminUser) { alert('Only the admin can create polls.'); return; }
+
+        const pollTitle = document.getElementById('poll-title').value.trim();
+        const dateInputs = pollOptionsContainer.querySelectorAll('.poll-date-input');
+        const pollOptions = Array.from(dateInputs)
+                                .map(input => input.value.trim())
+                                .filter(date => date !== '');
+
+        if (!pollTitle) { alert('Please provide a poll title.'); return; }
+        if (pollOptions.length === 0) { alert('Please add at least one date option.'); return; }
+
+        const optionsWithVotes = pollOptions.map(option => ({ date: option, voters: [] }));
+
+        try {
+            await pollsCollectionRef.add({
+                title: pollTitle,
+                options: optionsWithVotes,
+                createdBy: currentUser,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            alert('Poll created successfully!');
+            createPollModal.hide();
+            // Clear form
+            document.getElementById('poll-title').value = '';
+            pollOptionsContainer.innerHTML = '';
+            fetchAndDisplayPolls(); // Refresh polls list
+        } catch (err) {
+            console.error('Error creating poll:', err);
+            alert('Could not create poll.');
+        }
+    });
+
+    // Polls: Fetch and Display
+    async function fetchAndDisplayPolls() {
+        pollsListContainer.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
+        pollsCollectionRef.orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+            if (snapshot.empty) {
+                pollsListContainer.innerHTML = '<p>No polls yet.</p>';
+                return;
+            }
+            let html = '<div class="list-group">';
+            snapshot.forEach(doc => {
+                const poll = doc.data();
+                const pollId = doc.id;
+                const userHasVotedInPoll = currentUser && poll.options.some(opt => opt.voters.includes(currentUser));
+                const adminControls = (currentUser === adminUser) ? `<button class="btn btn-sm btn-outline-danger ms-2 remove-poll-button" data-poll-item-id="${pollId}">Delete Poll</button>` : '';
+
+                html += `<div class="list-group-item mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">${poll.title}</h5>
+                        <div>
+                            <small class="text-muted me-2">Created by: ${poll.createdBy || 'unknown'}</small>
+                            ${adminControls}
+                        </div>
+                    </div>
+                    <div class="poll-options">`;
+
+                poll.options.forEach((option, index) => {
+                    const optionId = `poll-${pollId}-option-${index}`;
+                    const isVotedByCurrentUser = currentUser && option.voters.includes(currentUser);
+                    const voteBtnClass = isVotedByCurrentUser ? 'btn-primary' : 'btn-outline-primary';
+                    const voteCount = option.voters.length;
+                    // Add day of the week
+                    const dateObj = new Date(option.date + 'T00:00:00'); // Ensure date is parsed correctly in local timezone
+                    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    const dayOfWeek = days[dateObj.getDay()];
+
+                    html += `<div class="d-flex align-items-center mb-1">
+                        <button class="btn btn-sm ${voteBtnClass} me-2 vote-for-option" data-poll-id="${pollId}" data-option-index="${index}" ${!currentUser ? 'disabled' : ''}>
+                            ${isVotedByCurrentUser ? '✓ Voted' : 'Vote'}
+                        </button>
+                        <span>${dayOfWeek}, ${option.date}</span>
+                        <span class="ms-auto badge bg-secondary">${voteCount} votes</span>
+                    </div>`;
+                });
+
+                html += `</div></div>`;
+            });
+            html += '</div>';
+            pollsListContainer.innerHTML = html;
+        }, err => {
+            console.error('Error fetching polls:', err);
+            pollsListContainer.innerHTML = '<p class="text-danger">Could not load polls.</p>';
+        });
+    }
+
+    // Polls: Handle Voting
+    pollsListContainer.addEventListener('click', async (e) => {
+        if (!e.target.classList.contains('vote-for-option')) return;
+        if (!currentUser) { alert('Please login to vote.'); return; }
+
+        const pollId = e.target.dataset.pollId;
+        const optionIndex = parseInt(e.target.dataset.optionIndex);
+        const pollRef = pollsCollectionRef.doc(pollId);
+
+        try {
+            await db.runTransaction(async (transaction) => {
+                const pollDoc = await transaction.get(pollRef);
+                if (!pollDoc.exists) return; // Poll deleted or not found
+
+                const poll = pollDoc.data();
+                let options = poll.options;
+
+                const selectedOption = options[optionIndex];
+
+                if (selectedOption.voters.includes(currentUser)) {
+                    // If user has already voted for this option, remove their vote
+                    selectedOption.voters = selectedOption.voters.filter(voter => voter !== currentUser);
+                } else {
+                    // If user has not voted for this option, add their vote
+                    selectedOption.voters.push(currentUser);
+                }
+
+                transaction.update(pollRef, { options: options });
+            });
+            fetchAndDisplayPolls(); // Refresh UI
+        } catch (err) {
+            console.error('Error voting on poll:', err);
+            alert('Could not cast your vote.');
+        }
+    });
+
+    // Polls: Delete Poll (Admin only)
+    pollsListContainer.addEventListener('click', async (e) => {
+        console.log('Click event on pollsListContainer', e.target);
+        if (!e.target.classList.contains('remove-poll-button')) return;
+        console.log('Remove poll button clicked');
+        if (currentUser !== adminUser) { alert('Only the admin can delete polls.'); return; }
+
+        const pollId = e.target.dataset.pollItemId;
+        console.log('Poll ID to delete:', pollId);
+
+        try {
+            await pollsCollectionRef.doc(pollId).delete();
+            alert('Poll deleted successfully.');
+            // No need to call fetchAndDisplayPolls() here, onSnapshot will handle it
+        } catch (err) {
+            console.error('Error deleting poll:', err);
+            alert('Could not delete poll.');
+        }
+    });
+
+    // Fetch usernames from Firebase and populate dropdown
+    async function fetchUsernames() {
+        console.log('Attempting to fetch usernames...');
+        if (!existingUsersDropdown) {
+            console.error('Error: existingUsersDropdown element not found.');
+            return;
+        }
+
+        try {
+            const snapshot = await usersCollectionRef.get();
+            existingUsersDropdown.innerHTML = '<option value="">--- Select existing user ---</option>';
+            const usernames = [];
+            snapshot.forEach(doc => {
+                usernames.push(doc.id);
+            });
+            usernames.sort(); // Sort alphabetically
+            console.log(`Found ${usernames.length} usernames:`, usernames);
+
+            usernames.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                existingUsersDropdown.appendChild(option);
+            });
+
+            // Always show the dropdown, but it will be empty if no non-admin users exist
+            existingUsersDropdown.classList.remove('d-none');
+            console.log('existingUsersDropdown should now be visible.');
+        } catch (err) {
+            console.error('Error fetching usernames:', err);
+        }
+    }
+
+    // Admin: Fetch and Display Users
+    async function fetchAndDisplayUsers() {
+        if (!userListContainer) return;
+        userListContainer.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading users...</span></div>';
+        try {
+            const snapshot = await usersCollectionRef.orderBy('createdAt', 'asc').get();
+            if (snapshot.empty) {
+                userListContainer.innerHTML = '<p>No registered users yet.</p>';
+                return;
+            }
+            let html = '';
+            snapshot.forEach(doc => {
+                const username = doc.id;
+                if (username === adminUser) return; // Don't allow deleting the admin user
+                html += `<div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>${username}</span>
+                    <button class="btn btn-sm btn-outline-danger delete-user-button" data-username="${username}">Delete</button>
+                </div>`;
+            });
+            userListContainer.innerHTML = html;
+        } catch (err) {
+            console.error('Error fetching users:', err);
+            userListContainer.innerHTML = '<p class="text-danger">Could not load users.</p>';
+        }
+    }
+
+    // Admin: Delete User (and their data)
+    if (userListContainer) {
+        userListContainer.addEventListener('click', async (e) => {
+            console.log('User list container click event', e.target);
+            if (!e.target.classList.contains('delete-user-button')) return;
+            console.log('Delete user button clicked');
+            if (currentUser !== adminUser) { alert('Only the admin can delete users.'); return; }
+    
+            const usernameToDelete = e.target.dataset.username;
+            console.log('Username to delete:', usernameToDelete);
+            if (!usernameToDelete) return;
+
+            try {
+                console.log('Initiating Firebase transaction to delete user:', usernameToDelete);
+                // Fetch all polls BEFORE the transaction starts, as transaction.get() is for documents
+                const pollsSnapshot = await pollsCollectionRef.get();
+                console.log('Fetched polls snapshot before transaction.');
+
+                await db.runTransaction(async (transaction) => {
+                    // 1. Delete user's wishlist/favorites
+                    console.log('Deleting user wishlist for:', usernameToDelete);
+                    const userWishlistRef = userWishlistsCollectionRef.doc(usernameToDelete);
+                    transaction.delete(userWishlistRef);
+    
+                    // 2. Remove user's votes from all polls
+                    console.log('Removing user votes from polls for:', usernameToDelete);
+                    pollsSnapshot.forEach(pollDoc => {
+                        const pollRef = pollsCollectionRef.doc(pollDoc.id);
+                        const pollData = pollDoc.data();
+                        if (pollData.options) {
+                            const updatedOptions = pollData.options.map(option => ({
+                                ...option,
+                                voters: option.voters.filter(voter => voter !== usernameToDelete)
+                            }));
+                            transaction.update(pollRef, { options: updatedOptions });
+                        }
+                    });
+    
+                    // 3. Delete the user record itself
+                    console.log('Deleting user record for:', usernameToDelete);
+                    const userRef = usersCollectionRef.doc(usernameToDelete);
+                    transaction.delete(userRef);
+                });
+
+                console.log(`User '${usernameToDelete}' and all associated data deleted.`);
+                alert(`User '${usernameToDelete}' and all associated data deleted.`);
+                fetchUsernames(); // Refresh login dropdown
+                fetchAndDisplayUsers(); // Refresh admin user list
+            } catch (err) {
+                console.error('Error deleting user:', err);
+                alert('Could not delete user.');
+            }
+        });
+    }
+
+    // Modify updateUserDisplay to call fetchAndDisplayUsers when admin logs in
     // --- App Initialization ---
     updateUserDisplay();
     if (currentUser) {
@@ -807,4 +1163,18 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         showView('login');
     }
+
+    // Initial fetch for polls when events view might be active or navigated to
+    if (views.events && !views.events.classList.contains('d-none')) {
+        fetchAndDisplayEvents();
+        fetchAndDisplayPolls();
+    }
+
+    // Ensure polls are fetched when navigating to events view
+    navLinks.events.addEventListener('click', (e) => {
+        e.preventDefault();
+        showView('events');
+        fetchAndDisplayEvents();
+        fetchAndDisplayPolls();
+    });
 });
