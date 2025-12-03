@@ -14,6 +14,10 @@
     ],
     "rewrites": [
       {
+        "source": "/__/firebase/init.js",
+        "destination": "/__/firebase/init.js"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

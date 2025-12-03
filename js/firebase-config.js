@@ -1,9 +1,10 @@
-// IMPORTANT: Replace with your Firebase project's configuration
-// This is sensitive information and should not be committed to a public repository.
-// Consider using Firebase Hosting environment variables to store this.
+// IMPORTANT: This file handles Firebase configuration.
+// It prioritizes the configuration injected by Firebase Hosting.
+// For local development, it falls back to the configuration provided in `firebase-env.js`.
 
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || window.firebaseConfig?.apiKey || "",
+  // Use the key from Firebase Hosting if available, otherwise fall back to the local config.
+  apiKey: window.firebaseConfig?.apiKey || window.localFirebaseConfig?.apiKey || "",
   authDomain: "boardgameapp-cc741.firebaseapp.com",
   projectId: "boardgameapp-cc741",
   storageBucket: "boardgameapp-cc741.firebasestorage.app",
@@ -11,7 +12,7 @@ const firebaseConfig = {
   appId: "1:482372219202:web:a4598f340ea5e3751bd8db"
 };
 
-// Initialize Firebase (v9 compat)
+// ... (rest of the file remains the same)
 try {
   // Check if Firebase API key is actually provided
   if (!firebaseConfig.apiKey) {
