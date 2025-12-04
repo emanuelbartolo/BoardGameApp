@@ -1,3 +1,5 @@
+const bggProxyUrl = 'bgg-proxy.emanuelbartolo.workers.dev'; // Replace YOUR_WORKER_URL_HERE with your Cloudflare Worker URL
+
 // This file only contains the function to parse the BGG XML file content.
 function parseBggXml(xmlText) {
     const parser = new DOMParser();

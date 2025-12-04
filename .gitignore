@@ -3,3 +3,5 @@
 *.log
 # Local Firebase Environment Configuration
 js/firebase-env.js
+# Firebase environment file
+functions/.env

@@ -565,26 +565,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- API and AI Functions ---
 
-    // Save API Key
-    document.getElementById('save-api-key-button').addEventListener('click', () => {
-        const apiKey = document.getElementById('api-key-input').value.trim();
-        if (apiKey) {
-            localStorage.setItem('openrouter_api_key', apiKey);
-            alert('API Key saved successfully!');
-            document.getElementById('api-key-input').value = '';
-        } else {
-            alert('Please enter an API key.');
-        }
-    });
-
     // Generate AI Summary
     document.getElementById('ai-summary-button').addEventListener('click', async () => {
-        const apiKey = localStorage.getItem('openrouter_api_key');
-        if (!apiKey) {
-            alert('Please save your OpenRouter API key in the Admin Controls section first.');
-            return;
-        }
-
         if (!currentlySelectedBggId) return;
 
         const summaryContainer = document.getElementById('ai-summary-container');
@@ -600,26 +582,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const prompt = `You are a board game support bot. Provide a short, factual, and easy-to-understand summary of the board game "${game.name}". Focus on the theme and what players do mechanically in the game. Keep it to 2-3 sentences.`;
 
         try {
-            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            const functionUrl = "https://us-central1-boardgameapp-cc741.cloudfunctions.net/generateAiSummary";
+            const response = await fetch(functionUrl, {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${apiKey}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({
-                    "model": "google/gemma-3-27b-it:free", // A fast and cheap model
-                    "messages": [
-                        { "role": "user", "content": prompt }
-                    ]
-                })
+                body: JSON.stringify({ prompt: prompt })
             });
 
             if (!response.ok) {
-                throw new Error(`OpenRouter API error! Status: ${response.status}`);
+                throw new Error(`Cloud Function error! Status: ${response.status}`);
             }
 
             const data = await response.json();
-            const summary = data.choices[0].message.content;
+            const summary = data.summary;
             summaryContainer.innerHTML = `<p><strong>AI Summary:</strong> ${summary}</p>`;
 
         } catch (error) {
@@ -757,57 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Admin: Upload Collection
-    document.getElementById('upload-collection-button').addEventListener('click', () => {
-        const fileInput = document.getElementById('xml-file-input');
-        const statusDiv = document.getElementById('upload-status');
-        
-        if (fileInput.files.length === 0) {
-            statusDiv.innerHTML = '<p class="text-danger">Please select a file first.</p>';
-            return;
-        }
-
-        const file = fileInput.files[0];
-        const reader = new FileReader();
-
-        reader.onload = async (e) => {
-            try {
-                statusDiv.innerHTML = '<p class="text-info">Parsing XML...</p>';
-                const games = parseBggXml(e.target.result);
-                
-                statusDiv.innerHTML = `<p class="text-info">Found ${games.length} games. Deleting old collection from Firebase...</p>`;
-                
-                // To delete the old collection, we must fetch all documents and delete them.
-                const oldGamesSnapshot = await gamesCollectionRef.get();
-                const batchDelete = db.batch();
-                oldGamesSnapshot.forEach(doc => batchDelete.delete(doc.ref));
-                await batchDelete.commit();
-
-                statusDiv.innerHTML = `<p class="text-info">Uploading ${games.length} new games to Firebase...</p>`;
-
-                // Upload new collection in a new batch to avoid exceeding limits.
-                const batchWrite = db.batch();
-                games.forEach(game => {
-                    const docRef = gamesCollectionRef.doc(game.bggId); // Use BGG ID as the document ID
-                    batchWrite.set(docRef, game);
-                });
-                await batchWrite.commit();
-
-                statusDiv.innerHTML = '<p class="text-success">Collection uploaded successfully!</p>';
-                fetchAndDisplayGames(); // Refresh the view with the new data
-
-            } catch (error) {
-                console.error("Upload error:", error);
-                statusDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
-            }
-        };
-
-        reader.onerror = () => {
-            statusDiv.innerHTML = '<p class="text-danger">Failed to read the file.</p>';
-        };
-
-        reader.readAsText(file);
-    });
+    // Admin: Upload Collection (Replaced with proxy fetch functionality)
 
         // Events: create and list
         async function fetchAndDisplayEvents() {
@@ -1176,5 +1103,52 @@ document.addEventListener('DOMContentLoaded', () => {
         showView('events');
         fetchAndDisplayEvents();
         fetchAndDisplayPolls();
+    });
+
+    // Admin: Fetch BGG Collection via Proxy
+    document.getElementById('fetch-bgg-collection-proxy-button').addEventListener('click', async () => {
+        const statusDiv = document.getElementById('upload-status');
+        statusDiv.innerHTML = '<p class="text-info">Fetching BGG collection via proxy...</p>';
+
+        try {
+            // Construct the BGG API URL. Replace 'leli84' with the desired username if dynamic.
+            const bggApiUrl = `https://boardgamegeek.com/xmlapi2/collection?username=leli84&own=1&stats=1`;
+            const proxyFetchUrl = bggProxyUrl + encodeURIComponent(bggApiUrl);
+
+            const response = await fetch(proxyFetchUrl);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to fetch BGG collection: ${response.status} - ${errorText}`);
+            }
+
+            const xmlText = await response.text();
+            const games = parseBggXml(xmlText);
+
+            statusDiv.innerHTML = `<p class="text-info">Found ${games.length} games. Deleting old collection from Firebase...</p>`;
+
+            // To delete the old collection, we must fetch all documents and delete them.
+            const oldGamesSnapshot = await gamesCollectionRef.get();
+            const batchDelete = db.batch();
+            oldGamesSnapshot.forEach(doc => batchDelete.delete(doc.ref));
+            await batchDelete.commit();
+
+            statusDiv.innerHTML = `<p class="text-info">Uploading ${games.length} new games to Firebase...</p>`;
+
+            // Upload new collection in a new batch to avoid exceeding limits.
+            const batchWrite = db.batch();
+            games.forEach(game => {
+                const docRef = gamesCollectionRef.doc(game.bggId); // Use BGG ID as the document ID
+                batchWrite.set(docRef, game);
+            });
+            await batchWrite.commit();
+
+            statusDiv.innerHTML = '<p class="text-success">Collection uploaded successfully!</p>';
+            fetchAndDisplayGames(); // Refresh the view with the new data
+
+        } catch (error) {
+            console.error("BGG Fetch and Upload error:", error);
+            statusDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+        }
     });
 });
