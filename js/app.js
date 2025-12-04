@@ -542,22 +542,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 const game = gameDoc.data();
                 document.getElementById('game-modal-title').textContent = game.name;
                 
-                document.getElementById('game-modal-body').innerHTML = `
+                let detailsHtml = `
                     <div class="row">
                         <div class="col-md-4">
                             <img src="${game.image}" class="img-fluid rounded" alt="${game.name}">
                         </div>
                         <div class="col-md-8">
-                            <p><strong>Players:</strong> ${game.minPlayers} - ${game.maxPlayers}</p>
-                            <p><strong>Play Time:</strong> ${game.playingTime} min</p>
-                            <p><strong>Rating:</strong> ${game.rating} / 10</p>
-                            <p><strong>Year Published:</strong> ${game.year || 'N/A'}</p>
-                            <p><strong>BGG ID:</strong> ${game.bggId}</p>
-                            <hr>
-                            <div id="ai-summary-container"></div>
+                `;
+
+                // Conditionally add details if they exist and are not 'N/A'
+                if (game.minPlayers && game.minPlayers !== 'N/A') {
+                    detailsHtml += `<p><strong>Players:</strong> ${game.minPlayers} - ${game.maxPlayers}</p>`;
+                }
+                if (game.playingTime && game.playingTime !== 'N/A') {
+                    detailsHtml += `<p><strong>Play Time:</strong> ${game.playingTime} min</p>`;
+                }
+                if (game.rating && game.rating !== 'N/A') {
+                    detailsHtml += `<p><strong>Rating:</strong> ${game.rating} / 10</p>`;
+                }
+                if (game.year) {
+                    detailsHtml += `<p><strong>Year Published:</strong> ${game.year}</p>`;
+                }
+
+                // Add the styled BGG link
+                detailsHtml += `
+                    <p class="mt-3">
+                        <a href="https://boardgamegeek.com/boardgame/${game.bggId}" target="_blank" class="btn btn-sm btn-outline-primary">View on BGG</a>
+                    </p>
+                    <hr>
+                    <div id="ai-summary-container"></div>
+                `;
+
+                detailsHtml += `
                         </div>
                     </div>
                 `;
+
+                document.getElementById('game-modal-body').innerHTML = detailsHtml;
                 gameDetailsModal.show();
             }
         }
@@ -1105,50 +1126,5 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchAndDisplayPolls();
     });
 
-    // Admin: Fetch BGG Collection via Proxy
-    document.getElementById('fetch-bgg-collection-proxy-button').addEventListener('click', async () => {
-        const statusDiv = document.getElementById('upload-status');
-        statusDiv.innerHTML = '<p class="text-info">Fetching BGG collection via proxy...</p>';
 
-        try {
-            // Construct the BGG API URL. Replace 'leli84' with the desired username if dynamic.
-            const bggApiUrl = `https://boardgamegeek.com/xmlapi2/collection?username=leli84&own=1&stats=1`;
-            const proxyFetchUrl = bggProxyUrl + encodeURIComponent(bggApiUrl);
-
-            const response = await fetch(proxyFetchUrl);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to fetch BGG collection: ${response.status} - ${errorText}`);
-            }
-
-            const xmlText = await response.text();
-            const games = parseBggXml(xmlText);
-
-            statusDiv.innerHTML = `<p class="text-info">Found ${games.length} games. Deleting old collection from Firebase...</p>`;
-
-            // To delete the old collection, we must fetch all documents and delete them.
-            const oldGamesSnapshot = await gamesCollectionRef.get();
-            const batchDelete = db.batch();
-            oldGamesSnapshot.forEach(doc => batchDelete.delete(doc.ref));
-            await batchDelete.commit();
-
-            statusDiv.innerHTML = `<p class="text-info">Uploading ${games.length} new games to Firebase...</p>`;
-
-            // Upload new collection in a new batch to avoid exceeding limits.
-            const batchWrite = db.batch();
-            games.forEach(game => {
-                const docRef = gamesCollectionRef.doc(game.bggId); // Use BGG ID as the document ID
-                batchWrite.set(docRef, game);
-            });
-            await batchWrite.commit();
-
-            statusDiv.innerHTML = '<p class="text-success">Collection uploaded successfully!</p>';
-            fetchAndDisplayGames(); // Refresh the view with the new data
-
-        } catch (error) {
-            console.error("BGG Fetch and Upload error:", error);
-            statusDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
-        }
-    });
 });
