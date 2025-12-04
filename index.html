@@ -14,36 +14,42 @@
         <header class="py-3 mb-4 border-bottom">
             <div class="mb-2">
                 <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
-                    <span class="fs-4">Board Game Group Planner</span>
+                    <span class="fs-4" data-i18n-key="title">Board Game Group Planner</span>
                 </a>
             </div>
             <div class="d-flex flex-wrap justify-content-between align-items-center">
                 <ul class="nav nav-pills">
-                    <li class="nav-item d-none"><a href="#" class="nav-link" id="nav-collection">Collection</a></li>
-                    <li class="nav-item d-none"><a href="#" class="nav-link" id="nav-shortlist">Shortlist</a></li>
-                    <li class="nav-item d-none"><a href="#" class="nav-link" id="nav-events">Events</a></li>
-                    <li class="nav-item"><a href="#" class="nav-link d-none" id="nav-admin">Admin</a></li>
-                    <li class="nav-item"><a href="#" class="nav-link" id="nav-login">Login</a></li>
+                    <li class="nav-item d-none"><a href="#" class="nav-link" id="nav-collection" data-i18n-key="nav_collection">Collection</a></li>
+                    <li class="nav-item d-none"><a href="#" class="nav-link" id="nav-shortlist" data-i18n-key="nav_shortlist">Shortlist</a></li>
+                    <li class="nav-item d-none"><a href="#" class="nav-link" id="nav-events" data-i18n-key="nav_events">Events</a></li>
+                    <li class="nav-item"><a href="#" class="nav-link d-none" id="nav-admin" data-i18n-key="nav_admin">Admin</a></li>
+                    <li class="nav-item"><a href="#" class="nav-link" id="nav-login" data-i18n-key="nav_login">Login</a></li>
                 </ul>
                 <div id="user-display" class="d-flex align-items-center"></div>
+                <div class="ms-3">
+                    <select id="language-switcher" class="form-select form-select-sm">
+                        <option value="en">English</option>
+                        <option value="de">Deutsch</option>
+                    </select>
+                </div>
             </div>
         </header>
 
         <main>
             <!-- Login View -->
             <section id="login-view">
-                <h2>Login</h2>
+                <h2 data-i18n-key="login_heading">Login</h2>
                 <div class="mb-3">
-                    <label for="username-input" class="form-label">Enter your username or select existing</label>
-                    <input type="text" id="username-input" class="form-control mb-2" placeholder="Enter new username">
+                    <label for="username-input" class="form-label" data-i18n-key="login_username_label">Enter your username or select existing</label>
+                    <input type="text" id="username-input" class="form-control mb-2" placeholder="Enter new username" data-i18n-key="login_username_placeholder">
                     <select id="existing-users-dropdown" class="form-select d-none">
-                        <option value="">--- Select existing user ---</option>
+                        <option value="" data-i18n-key="login_select_user_placeholder">--- Select existing user ---</option>
                     </select>
                 </div>
                 <div class="input-group mb-3 d-none" id="password-field">
-                    <input type="password" id="password-input" class="form-control" placeholder="Enter admin password">
+                    <input type="password" id="password-input" class="form-control" placeholder="Enter admin password" data-i18n-key="login_password_placeholder">
                 </div>
-                <button class="btn btn-primary" type="button" id="login-button">Login</button>
+                <button class="btn btn-primary" type="button" id="login-button" data-i18n-key="login_button">Login</button>
             </section>
 
             <!-- Collection View -->
@@ -51,14 +57,14 @@
                 <!-- Collection header and list (admin controls moved to Admin view) -->
 
                 <div class="mb-3">
-                    <h2>Game Collection</h2>
+                    <h2 data-i18n-key="collection_heading">Game Collection</h2>
                     <div class="d-flex justify-content-between align-items-center mt-2">
                         <div class="btn-group me-2" role="group" id="layout-switcher">
-                            <button type="button" class="btn btn-outline-secondary active" data-layout="large-grid">Large Grid</button>
-                            <button type="button" class="btn btn-outline-secondary" data-layout="small-grid">Small Grid</button>
-                            <button type="button" class="btn btn-outline-secondary" data-layout="list">List</button>
+                            <button type="button" class="btn btn-outline-secondary active" data-layout="large-grid" data-i18n-key="layout_large_grid">Large Grid</button>
+                            <button type="button" class="btn btn-outline-secondary" data-layout="small-grid" data-i18n-key="layout_small_grid">Small Grid</button>
+                            <button type="button" class="btn btn-outline-secondary" data-layout="list" data-i18n-key="layout_list">List</button>
                         </div>
-                        <button id="wishlist-filter-button" class="btn btn-outline-primary btn-sm d-none">My Wishlist</button>
+                        <button id="wishlist-filter-button" class="btn btn-outline-primary btn-sm d-none" data-i18n-key="wishlist_filter_button">My Wishlist</button>
                     </div>
                 </div>
 
@@ -69,26 +75,26 @@
 
             <!-- Shortlist View -->
             <section id="shortlist-view" class="d-none">
-                <h2>Game Shortlist</h2>
+                <h2 data-i18n-key="shortlist_heading">Game Shortlist</h2>
                 <div id="shortlist-games" class="row"></div>
             </section>
 
             <!-- Admin View -->
             <section id="admin-view" class="d-none">
                 <div id="admin-panel" class="card bg-light p-3 mb-4">
-                    <h4>Admin Controls</h4>
-                    <p>Update the group's shared game collection from a BGG XML file.</p>
+                    <h4 data-i18n-key="admin_heading">Admin Controls</h4>
+                    <p data-i18n-key="admin_description">Update the group's shared game collection from a BGG XML file.</p>
                     <ol>
                         <li>
-                            <strong>Get BGG File:</strong> 
-                            <a href="https://boardgamegeek.com/xmlapi2/collection?username=leli84&own=1&stats=1" target="_blank" class="btn btn-secondary btn-sm">Get BGG Collection File</a>
-                            <small class="d-block text-muted">If you see a "processing" message, wait a minute and refresh that page until the XML appears, then save the file.</small>
+                            <strong data-i18n-key="admin_get_bgg_file">Get BGG File:</strong> 
+                            <a href="https://boardgamegeek.com/xmlapi2/collection?username=leli84&own=1&stats=1" target="_blank" class="btn btn-secondary btn-sm" data-i18n-key="admin_get_bgg_file_button">Get BGG Collection File</a>
+                            <small class="d-block text-muted" data-i18n-key="admin_get_bgg_file_help">If you see a "processing" message, wait a minute and refresh that page until the XML appears, then save the file.</small>
                         </li>
                         <li class="mt-2">
-                            <strong>Upload File:</strong>
+                            <strong data-i18n-key="admin_upload_file">Upload File:</strong>
                             <div class="input-group">
                                 <input type="file" id="xml-file-input" class="form-control" accept=".xml">
-                                <button id="upload-collection-button" class="btn btn-primary">Upload to Firebase</button>
+                                <button id="upload-collection-button" class="btn btn-primary" data-i18n-key="admin_upload_button">Upload to Firebase</button>
                             </div>
                         </li>
                     </ol>
@@ -100,8 +106,8 @@
 
                 <!-- User Management (Admin-only) -->
                 <div class="card bg-light p-3 mb-4">
-                    <h4>User Management</h4>
-                    <p>Manage registered users. Deleting a user will also remove their associated data (favorites, poll votes).</p>
+                    <h4 data-i18n-key="user_management_heading">User Management</h4>
+                    <p data-i18n-key="user_management_description">Manage registered users. Deleting a user will also remove their associated data (favorites, poll votes).</p>
                     <div id="user-list-container" class="list-group"></div>
                 </div>
             </section>
@@ -110,12 +116,12 @@
 
             <!-- Events View -->
             <section id="events-view" class="d-none">
-                <h2>Calendar Events</h2>
-                <button id="create-event-button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#create-event-modal">Create New Event</button>
+                <h2 data-i18n-key="events_heading">Calendar Events</h2>
+                <button id="create-event-button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#create-event-modal" data-i18n-key="events_create_button">Create New Event</button>
                 <div id="events-list"></div>
 
-                <h2 class="mt-5">Event Date Polls</h2>
-                <button id="create-poll-button" class="btn btn-success mb-3 d-none" data-bs-toggle="modal" data-bs-target="#create-poll-modal">Create New Poll</button>
+                <h2 class="mt-5" data-i18n-key="polls_heading">Event Date Polls</h2>
+                <button id="create-poll-button" class="btn btn-success mb-3 d-none" data-bs-toggle="modal" data-bs-target="#create-poll-modal" data-i18n-key="polls_create_button">Create New Poll</button>
                 <div id="polls-list"></div>
             </section>
 
@@ -127,30 +133,30 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Create New Event</h5>
+                    <h5 class="modal-title" data-i18n-key="modal_create_event_title">Create New Event</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="event-title" class="form-label">Event Title</label>
-                        <input type="text" class="form-control" id="event-title" placeholder="e.g., Board Game Night">
+                        <label for="event-title" class="form-label" data-i18n-key="modal_event_title_label">Event Title</label>
+                        <input type="text" class="form-control" id="event-title" placeholder="e.g., Board Game Night" data-i18n-key="modal_event_title_placeholder">
                     </div>
                     <div class="mb-3">
-                        <label for="event-date" class="form-label">Date</label>
+                        <label for="event-date" class="form-label" data-i18n-key="modal_date_label">Date</label>
                         <input type="date" class="form-control" id="event-date">
                     </div>
                     <div class="mb-3">
-                        <label for="event-time" class="form-label">Time</label>
+                        <label for="event-time" class="form-label" data-i18n-key="modal_time_label">Time</label>
                         <input type="time" class="form-control" id="event-time">
                     </div>
                     <div class="mb-3">
-                        <label for="event-location" class="form-label">Location</label>
-                        <input type="text" class="form-control" id="event-location" placeholder="e.g., My place">
+                        <label for="event-location" class="form-label" data-i18n-key="modal_location_label">Location</label>
+                        <input type="text" class="form-control" id="event-location" placeholder="e.g., My place" data-i18n-key="modal_location_placeholder">
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="save-event-button">Create Event</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n-key="modal_close_button">Close</button>
+                    <button type="button" class="btn btn-primary" id="save-event-button" data-i18n-key="modal_create_event_button">Create Event</button>
                 </div>
             </div>
         </div>
@@ -161,22 +167,22 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Create New Poll</h5>
+                    <h5 class="modal-title" data-i18n-key="modal_create_poll_title">Create New Poll</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="poll-title" class="form-label">Poll Title</label>
-                        <input type="text" class="form-control" id="poll-title" placeholder="e.g., Next Game Night Date">
+                        <label for="poll-title" class="form-label" data-i18n-key="modal_poll_title_label">Poll Title</label>
+                        <input type="text" class="form-control" id="poll-title" placeholder="e.g., Next Game Night Date" data-i18n-key="modal_poll_title_placeholder">
                     </div>
                     <div id="poll-options-container">
                         <!-- Date options will be added here dynamically -->
                     </div>
-                    <button class="btn btn-secondary btn-sm mt-2" id="add-poll-option">Add Date Option</button>
+                    <button class="btn btn-secondary btn-sm mt-2" id="add-poll-option" data-i18n-key="modal_add_poll_option_button">Add Date Option</button>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="save-poll-button">Create Poll</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n-key="modal_close_button">Close</button>
+                    <button type="button" class="btn btn-primary" id="save-poll-button" data-i18n-key="modal_create_poll_button">Create Poll</button>
                 </div>
             </div>
         </div>
@@ -187,14 +193,14 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="game-modal-title">Game Details</h5>
+                    <h5 class="modal-title" id="game-modal-title" data-i18n-key="modal_game_details_title">Game Details</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body" id="game-modal-body">
                     <!-- Game details will be loaded here -->
                 </div>
                 <div class="modal-footer">
-                    <button id="ai-summary-button" class="btn btn-info">Generate AI Summary</button>
+                    <button id="ai-summary-button" class="btn btn-info" data-i18n-key="modal_ai_summary_button">Generate AI Summary</button>
                 </div>
             </div>
         </div>

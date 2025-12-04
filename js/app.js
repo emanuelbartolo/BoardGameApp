@@ -53,6 +53,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Core Functions ---
 
+    // --- Localization ---
+    let translations = {};
+
+    async function loadTranslations(lang) {
+        try {
+            const response = await fetch(`locales/${lang}.json`);
+            if (!response.ok) {
+                console.error(`Could not load ${lang}.json`);
+                return;
+            }
+            translations = await response.json();
+            updateUIText();
+        } catch (error) {
+            console.error('Error loading translations:', error);
+        }
+    }
+
+    function updateUIText() {
+        document.querySelectorAll('[data-i18n-key]').forEach(el => {
+            const key = el.getAttribute('data-i18n-key');
+            if (translations[key]) {
+                if (el.placeholder) {
+                    el.placeholder = translations[key];
+                } else {
+                    el.textContent = translations[key];
+                }
+            }
+        });
+        // Also update dynamic parts of the UI that are not in the initial HTML
+        updateUserDisplay();
+    }
+    // --- End Localization ---
+
     function showView(viewName) {
         Object.values(views).forEach(view => view && view.classList.add('d-none'));
         if (views[viewName]) {
@@ -128,8 +161,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUserDisplay() {
         if (currentUser) {
             userDisplay.innerHTML = `
-                <span class="me-2">Logged in as: <strong>${currentUser}</strong></span>
-                <button class="btn btn-sm btn-outline-secondary" id="logout-button">Logout</button>
+                <span class="me-2">${translations.logged_in_as || 'Logged in as:'} <strong>${currentUser}</strong></span>
+                <button class="btn btn-sm btn-outline-secondary" id="logout-button">${translations.logout_button || 'Logout'}</button>
             `;
             // Show admin panel if the current user is the admin
             if (adminPanel) {
@@ -159,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } else {
-            userDisplay.innerHTML = '<span>Not logged in</span>';
+            userDisplay.innerHTML = `<span>${translations.not_logged_in || 'Not logged in'}</span>`;
             if (adminPanel) {
                 adminPanel.classList.add('d-none');
             }
@@ -567,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Add the styled BGG link
                 detailsHtml += `
                     <p class="mt-3">
-                        <a href="https://boardgamegeek.com/boardgame/${game.bggId}" target="_blank" class="btn btn-sm btn-outline-primary">View on BGG</a>
+                        <a href="https://boardgamegeek.com/boardgame/${game.bggId}" target="_blank" class="btn btn-sm btn-outline-primary">${translations.modal_view_on_bgg_button || 'View on BGG'}</a>
                     </p>
                     <hr>
                     <div id="ai-summary-container"></div>
@@ -600,7 +633,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const game = gameDoc.data();
 
-        const prompt = `You are a board game support bot. Provide a short, factual, and easy-to-understand summary of the board game "${game.name}". Focus on the theme and what players do mechanically in the game. Keep it to 2-3 sentences.`;
+        const lang = localStorage.getItem('bgg_lang') || 'en';
+        const langName = lang === 'de' ? 'German' : 'English';
+        const prompt = `You are a board game support bot. Provide a short, factual, and easy-to-understand summary of the board game "${game.name}". Focus on the theme and what players do mechanically in the game. Keep it to 2-3 sentences. Please reply only in ${langName}.`;
 
         try {
             const functionUrl = "https://us-central1-boardgameapp-cc741.cloudfunctions.net/generateAiSummary";
@@ -618,7 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             const summary = data.summary;
-            summaryContainer.innerHTML = `<p><strong>AI Summary:</strong> ${summary}</p>`;
+            summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summary}</p>`;
 
         } catch (error) {
             console.error("AI Summary Error:", error);
@@ -1126,5 +1161,15 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchAndDisplayPolls();
     });
 
+    // --- Localization Initialization ---
+    const languageSwitcher = document.getElementById('language-switcher');
+    languageSwitcher.addEventListener('change', (e) => {
+        const lang = e.target.value;
+        localStorage.setItem('bgg_lang', lang);
+        loadTranslations(lang);
+    });
 
+    const savedLang = localStorage.getItem('bgg_lang') || 'en';
+    languageSwitcher.value = savedLang;
+    loadTranslations(savedLang); // Load translations after initial setup
 });
