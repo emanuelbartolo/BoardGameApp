@@ -612,6 +612,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
 
                 document.getElementById('game-modal-body').innerHTML = detailsHtml;
+
+                // --- Check for and display existing summary ---
+                const lang = localStorage.getItem('bgg_lang') || 'en';
+                const summaryField = `summary_${lang}`;
+                if (game[summaryField]) {
+                    const summaryContainer = document.getElementById('ai-summary-container');
+                    summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${game[summaryField]}</p>`;
+                }
+                // --- End summary check ---
+
                 gameDetailsModal.show();
             }
         }
@@ -654,6 +664,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             const summary = data.summary;
             summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summary}</p>`;
+
+            // --- Save summary to Firestore ---
+            const summaryField = `summary_${lang}`;
+            await gamesCollectionRef.doc(currentlySelectedBggId).update({
+                [summaryField]: summary
+            });
+            // --- End save summary ---
 
         } catch (error) {
             console.error("AI Summary Error:", error);
