@@ -36,6 +36,11 @@ section {
     flex-grow: 1;
 }
 
+/* Container for image to position favorite button */
+.game-card-image-container {
+    position: relative;
+}
+
 /* --- Small Grid Layout Compact Styles --- */
 .layout-small-grid .game-card .card-body {
     padding: 0.75rem;
@@ -43,6 +48,9 @@ section {
 .layout-small-grid .game-card .card-title {
     font-size: 0.9rem;
     margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .layout-small-grid .game-card .card-text {
     font-size: 0.8rem;
@@ -51,6 +59,18 @@ section {
 .layout-small-grid .game-card .btn {
     font-size: 0.75rem;
     padding: 0.1rem 0.4rem;
+}
+
+/* Override for the favorite toggle in small grid to ensure correct sizing */
+.layout-small-grid .game-card .favorite-toggle {
+    font-size: 1.2rem; /* Larger star */
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    z-index: 10;
 }
 
 /* Vote button styles: default white, becomes blue when 'voted' class is present */
@@ -79,8 +99,18 @@ section {
 }
 
 /* Favorite star button: solid yellow background when active */
-.favorite-toggle {
+.btn.favorite-toggle {
     transition: background-color 0.2s ease;
+    background-color: #fff; /* Neutral background for non-active state */
+    font-size: 1.2rem !important; /* Larger star, force important */
+    width: 32px !important;
+    height: 32px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 !important; /* Override .btn padding */
+    line-height: 1;
+    border: 1px solid #ced4da;
 }
 .favorite-toggle.active {
     background-color: #ffc107;

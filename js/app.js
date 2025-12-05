@@ -264,12 +264,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (showOnlyFavorites) {
                 await fetchAndDisplayGames(); // Re-render if filtering by favorites
             } else {
-                // Only update the specific button's UI if not re-rendering the whole list
-                const favButton = document.querySelector(`.favorite-toggle[data-bgg-id="${bggId}"]`);
-                if (favButton) {
+                // Update all matching favorite buttons on the page (main list and modal)
+                const favButtons = document.querySelectorAll(`.favorite-toggle[data-bgg-id="${bggId}"]`);
+                favButtons.forEach(favButton => {
                     favButton.classList.toggle('active', userFavorites.includes(bggId));
                     favButton.textContent = userFavorites.includes(bggId) ? '★' : '☆';
-                }
+                });
             }
         } catch (err) {
             console.error('Error toggling favorite:', err);
@@ -441,7 +441,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     const btnClass = isVotedByAdmin ? 'voted' : (isShortlisted ? 'shortlisted' : '');
                     voteButtonHTML = `<button class="btn btn-sm btn-vote add-to-shortlist-button ${btnClass}" data-bgg-id="${game.bggId}" aria-pressed="${isVotedByAdmin}">${btnText}</button>`;
                 }
-                    const gameCard = `
+                
+                let gameCard = '';
+                if (currentLayout === 'small-grid') {
+                    gameCard = `
+                    <div class="${colClass} mb-4">
+                        <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
+                            <div class="game-card-image-container">
+                                <img src="${game.image}" class="card-img-top" alt="${game.name}">
+                                ${favButton}
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title">${game.name}</h5>
+                                <div class="d-flex gap-2">
+                                    ${voteButtonHTML}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                } else {
+                    gameCard = `
                     <div class="${colClass} mb-4">
                         <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
                             <img src="${game.image}" class="card-img-top" alt="${game.name}">
@@ -456,6 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 `;
+                }
                 gameCollectionContainer.insertAdjacentHTML('beforeend', gameCard);
             });
         } catch (error) {
@@ -646,6 +667,18 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
 
             document.getElementById('game-modal-body').innerHTML = detailsHtml;
+
+            // --- Add favorite button to modal footer ---
+            const favContainer = document.getElementById('modal-favorite-container');
+            if (favContainer) {
+                const isFav = currentUser && userFavorites.includes(bggId);
+                const favBtnClass = isFav ? 'active' : '';
+                const favButtonHTML = `<button class="btn btn-outline-warning favorite-toggle ${favBtnClass}" data-bgg-id="${bggId}" title="Toggle favorite">${isFav ? '★' : '☆'}</button>`;
+                favContainer.innerHTML = favButtonHTML;
+                favContainer.querySelector('.favorite-toggle').addEventListener('click', (e) => {
+                    toggleFavorite(e.target.dataset.bggId);
+                });
+            }
 
             // --- Check for and display existing summary from the new collection ---
             const lang = localStorage.getItem('bgg_lang') || 'en';
