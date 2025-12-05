@@ -601,6 +601,66 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchAndDisplayGames();
     });
 
+    // Reusable function to show the game details modal
+    async function showGameDetailsModal(bggId) {
+        currentlySelectedBggId = bggId; // Store the ID
+        const gameDoc = await gamesCollectionRef.doc(currentlySelectedBggId).get();
+        if (gameDoc.exists) {
+            const game = gameDoc.data();
+            document.getElementById('game-modal-title').textContent = game.name;
+            
+            let detailsHtml = `
+                <div class="row">
+                    <div class="col-md-4">
+                        <img src="${game.image}" class="img-fluid rounded" alt="${game.name}">
+                    </div>
+                    <div class="col-md-8">
+            `;
+
+            // Conditionally add details if they exist and are not 'N/A'
+            if (game.minPlayers && game.minPlayers !== 'N/A') {
+                detailsHtml += `<p><strong>${translations.modal_players_label || 'Players'}:</strong> ${game.minPlayers} - ${game.maxPlayers}</p>`;
+            }
+            if (game.playingTime && game.playingTime !== 'N/A') {
+                detailsHtml += `<p><strong>${translations.modal_play_time_label || 'Play Time'}:</strong> ${game.playingTime} min</p>`;
+            }
+            if (game.rating && game.rating !== 'N/A') {
+                detailsHtml += `<p><strong>${translations.modal_rating_label || 'Rating'}:</strong> ${game.rating} / 10</p>`;
+            }
+            if (game.year) {
+                detailsHtml += `<p><strong>${translations.modal_year_published_label || 'Year Published'}:</strong> ${game.year}</p>`;
+            }
+
+            // Add the styled BGG link
+            detailsHtml += `
+                <p class="mt-3">
+                    <a href="https://boardgamegeek.com/boardgame/${game.bggId}" target="_blank" class="btn btn-sm btn-outline-primary">${translations.modal_view_on_bgg_button || 'View on BGG'}</a>
+                </p>
+                <hr>
+                <div id="ai-summary-container"></div>
+            `;
+
+            detailsHtml += `
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('game-modal-body').innerHTML = detailsHtml;
+
+            // --- Check for and display existing summary from the new collection ---
+            const lang = localStorage.getItem('bgg_lang') || 'en';
+            const summaryField = `summary_${lang}`;
+            const summaryDoc = await summariesCollectionRef.doc(currentlySelectedBggId).get();
+            if (summaryDoc.exists && summaryDoc.data()[summaryField]) {
+                const summaryContainer = document.getElementById('ai-summary-container');
+                summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summaryDoc.data()[summaryField]}</p>`;
+            }
+            // --- End summary check ---
+
+            gameDetailsModal.show();
+        }
+    }
+
     // Show Game Details Modal
     gameCollectionContainer.addEventListener('click', async (e) => {
         const card = e.target.closest('.game-card');
@@ -613,62 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Ignore clicks on the vote button for opening details
         if (card && !e.target.classList.contains('add-to-shortlist-button')) {
-            currentlySelectedBggId = card.dataset.bggId; // Store the ID
-            const gameDoc = await gamesCollectionRef.doc(currentlySelectedBggId).get();
-            if (gameDoc.exists) {
-                const game = gameDoc.data();
-                document.getElementById('game-modal-title').textContent = game.name;
-                
-                let detailsHtml = `
-                    <div class="row">
-                        <div class="col-md-4">
-                            <img src="${game.image}" class="img-fluid rounded" alt="${game.name}">
-                        </div>
-                        <div class="col-md-8">
-                `;
-
-                // Conditionally add details if they exist and are not 'N/A'
-                if (game.minPlayers && game.minPlayers !== 'N/A') {
-                    detailsHtml += `<p><strong>Players:</strong> ${game.minPlayers} - ${game.maxPlayers}</p>`;
-                }
-                if (game.playingTime && game.playingTime !== 'N/A') {
-                    detailsHtml += `<p><strong>Play Time:</strong> ${game.playingTime} min</p>`;
-                }
-                if (game.rating && game.rating !== 'N/A') {
-                    detailsHtml += `<p><strong>Rating:</strong> ${game.rating} / 10</p>`;
-                }
-                if (game.year) {
-                    detailsHtml += `<p><strong>Year Published:</strong> ${game.year}</p>`;
-                }
-
-                // Add the styled BGG link
-                detailsHtml += `
-                    <p class="mt-3">
-                        <a href="https://boardgamegeek.com/boardgame/${game.bggId}" target="_blank" class="btn btn-sm btn-outline-primary">${translations.modal_view_on_bgg_button || 'View on BGG'}</a>
-                    </p>
-                    <hr>
-                    <div id="ai-summary-container"></div>
-                `;
-
-                detailsHtml += `
-                        </div>
-                    </div>
-                `;
-
-                document.getElementById('game-modal-body').innerHTML = detailsHtml;
-
-                // --- Check for and display existing summary from the new collection ---
-                const lang = localStorage.getItem('bgg_lang') || 'en';
-                const summaryField = `summary_${lang}`;
-                const summaryDoc = await summariesCollectionRef.doc(currentlySelectedBggId).get();
-                if (summaryDoc.exists && summaryDoc.data()[summaryField]) {
-                    const summaryContainer = document.getElementById('ai-summary-container');
-                    summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summaryDoc.data()[summaryField]}</p>`;
-                }
-                // --- End summary check ---
-
-                gameDetailsModal.show();
-            }
+            showGameDetailsModal(card.dataset.bggId);
         }
     });
 
@@ -677,62 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = e.target.closest('.game-card');
         // Ignore clicks on the vote button for opening details
         if (card && !e.target.classList.contains('shortlist-toggle-button') && !e.target.classList.contains('remove-shortlist-button')) {
-            currentlySelectedBggId = card.dataset.bggId; // Store the ID
-            const gameDoc = await gamesCollectionRef.doc(currentlySelectedBggId).get();
-            if (gameDoc.exists) {
-                const game = gameDoc.data();
-                document.getElementById('game-modal-title').textContent = game.name;
-                
-                let detailsHtml = `
-                    <div class="row">
-                        <div class="col-md-4">
-                            <img src="${game.image}" class="img-fluid rounded" alt="${game.name}">
-                        </div>
-                        <div class="col-md-8">
-                `;
-
-                // Conditionally add details if they exist and are not 'N/A'
-                if (game.minPlayers && game.minPlayers !== 'N/A') {
-                    detailsHtml += `<p><strong>Players:</strong> ${game.minPlayers} - ${game.maxPlayers}</p>`;
-                }
-                if (game.playingTime && game.playingTime !== 'N/A') {
-                    detailsHtml += `<p><strong>Play Time:</strong> ${game.playingTime} min</p>`;
-                }
-                if (game.rating && game.rating !== 'N/A') {
-                    detailsHtml += `<p><strong>Rating:</strong> ${game.rating} / 10</p>`;
-                }
-                if (game.year) {
-                    detailsHtml += `<p><strong>Year Published:</strong> ${game.year}</p>`;
-                }
-
-                // Add the styled BGG link
-                detailsHtml += `
-                    <p class="mt-3">
-                        <a href="https://boardgamegeek.com/boardgame/${game.bggId}" target="_blank" class="btn btn-sm btn-outline-primary">${translations.modal_view_on_bgg_button || 'View on BGG'}</a>
-                    </p>
-                    <hr>
-                    <div id="ai-summary-container"></div>
-                `;
-
-                detailsHtml += `
-                        </div>
-                    </div>
-                `;
-
-                document.getElementById('game-modal-body').innerHTML = detailsHtml;
-
-                // --- Check for and display existing summary from the new collection ---
-                const lang = localStorage.getItem('bgg_lang') || 'en';
-                const summaryField = `summary_${lang}`;
-                const summaryDoc = await summariesCollectionRef.doc(currentlySelectedBggId).get();
-                if (summaryDoc.exists && summaryDoc.data()[summaryField]) {
-                    const summaryContainer = document.getElementById('ai-summary-container');
-                    summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summaryDoc.data()[summaryField]}</p>`;
-                }
-                // --- End summary check ---
-
-                gameDetailsModal.show();
-            }
+            showGameDetailsModal(card.dataset.bggId);
         }
     });
 
@@ -916,9 +866,79 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Admin: Upload Collection (Replaced with proxy fetch functionality)
+    // Admin: Upload Collection
+    document.getElementById('upload-collection-button').addEventListener('click', async () => {
+        if (currentUser !== adminUser) {
+            alert('Only the admin can upload collection files.');
+            return;
+        }
 
-        // Events: create and list
+        const fileInput = document.getElementById('xml-file-input');
+        if (!fileInput.files.length) {
+            alert('Please select an XML file to upload.');
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        const uploadStatusDiv = document.getElementById('upload-status');
+        uploadStatusDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Uploading...</span></div> Uploading...';
+
+        reader.onload = async (e) => {
+            try {
+                const xmlText = e.target.result;
+                const newGames = parseBggXml(xmlText);
+                const newGameBggIds = new Set(newGames.map(game => game.bggId));
+
+                // 1. Get all existing game BGG IDs from Firestore
+                const existingGamesSnapshot = await gamesCollectionRef.get();
+                const existingGameBggIds = new Set();
+                existingGamesSnapshot.forEach(doc => {
+                    existingGameBggIds.add(doc.id);
+                });
+
+                const batch = db.batch();
+                let gamesAdded = 0;
+                let gamesUpdated = 0;
+                let gamesRemoved = 0;
+
+                // 2. Identify and delete games no longer in the new XML
+                const gamesToDelete = [...existingGameBggIds].filter(id => !newGameBggIds.has(id));
+                for (const bggId of gamesToDelete) {
+                    batch.delete(gamesCollectionRef.doc(bggId));
+                    gamesRemoved++;
+                }
+
+                // 3. Add/Update games from the new XML
+                newGames.forEach(game => {
+                    const gameRef = gamesCollectionRef.doc(game.bggId);
+                    // Use set with merge:true to update existing documents or create new ones
+                    // This way, if a game exists, it keeps its existing shortlist/wishlist data
+                    batch.set(gameRef, game, { merge: true });
+                    if (existingGameBggIds.has(game.bggId)) {
+                        gamesUpdated++;
+                    } else {
+                        gamesAdded++;
+                    }
+                });
+
+                await batch.commit();
+                uploadStatusDiv.innerHTML = `<p class="text-success">Upload complete! Added: ${gamesAdded}, Updated: ${gamesUpdated}, Removed: ${gamesRemoved} games.</p>`;
+                fetchAndDisplayGames(); // Refresh the collection view
+            } catch (error) {
+                console.error('Error uploading BGG collection:', error);
+                uploadStatusDiv.innerHTML = `<p class="text-danger">Error uploading collection: ${error.message}</p>`;
+            }
+        };
+
+        reader.onerror = () => {
+            uploadStatusDiv.innerHTML = '<p class="text-danger">Error reading file.</p>';
+        };
+
+        reader.readAsText(file);
+    });
+
+    // Events: create and list
         async function fetchAndDisplayEvents() {
             const list = document.getElementById('events-list');
             list.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
