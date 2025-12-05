@@ -73,6 +73,55 @@ section {
     z-index: 10;
 }
 
+/* --- Large Grid Layout Adjustments --- */
+.layout-large-grid .game-card .card-body {
+    padding: 0.75rem;
+}
+.layout-large-grid .game-card .card-title {
+    font-size: 0.9rem; /* same as small grid */
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.layout-large-grid .game-card .game-title-text {
+    display: inline-block;
+    flex: 1 1 auto;
+    min-width: 0; /* allow truncation */
+    white-space: nowrap; /* single line for title text only */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Favorite button inline next to title for large grid */
+.layout-large-grid .game-card .favorite-toggle {
+    position: static;
+    font-size: 1rem;
+    width: auto !important;
+    height: auto !important;
+    padding: 0.15rem 0.4rem !important;
+    margin-left: 0.5rem;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Make box art fully visible while keeping a square frame in large grid */
+.layout-large-grid .game-card .card-img-top {
+    object-fit: contain; /* show full image */
+    background-color: #f3f4f6; /* neutral background behind smaller images */
+}
+
+/* Ensure active favorite button shows yellow background in large grid (more specific selector) */
+.layout-large-grid .game-card .favorite-toggle.active,
+.layout-large-grid .game-card .favorite-toggle.active.btn {
+    background-color: #ffc107 !important;
+    border-color: #ffc107 !important;
+    color: #212529 !important;
+}
+
 /* Vote button styles: default white, becomes blue when 'voted' class is present */
 .btn-vote {
     background-color: #ffffff;
@@ -133,6 +182,135 @@ section {
 #login-button {
     width: 100%;
     margin-top: 1rem;
+}
+
+/* Top strip and banner styles */
+.top-strip {
+    border-bottom: 1px solid transparent;
+}
+.app-banner {
+    background-color: #f1f3f5; /* subtle grey */
+}
+.app-banner a { text-decoration: none; }
+
+/* Next Game Night preview styles */
+.next-game-night {
+    align-items: center;
+}
+.next-game-calendar {
+    width: 64px;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 6px 4px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.next-game-calendar .ngn-weekday {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+.next-game-calendar .ngn-day {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.next-game-calendar .ngn-month {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+.next-game-details .fw-bold {
+    font-size: 0.95rem;
+}
+
+/* When the widget sits inline with the H2, reduce its vertical spacing */
+.next-game-night { margin-left: 8px; }
+.next-game-night .next-game-details { display: inline-block; vertical-align: middle; }
+.next-game-calendar { display: inline-block; vertical-align: middle; }
+
+/* Pop-out styling for Next Game Night widget */
+.next-game-night {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #ffffff, #fbfcfd);
+    box-shadow: 0 6px 18px rgba(13,110,253,0.08), 0 2px 6px rgba(0,0,0,0.04);
+    transition: transform 150ms ease, box-shadow 150ms ease;
+    cursor: pointer; /* hint interactive */
+    border: 1px solid rgba(13,110,253,0.06);
+}
+
+.next-game-night:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(13,110,253,0.12), 0 4px 10px rgba(0,0,0,0.06);
+}
+
+/* Calendar block */
+.next-game-calendar {
+    min-width: 72px;
+    padding: 8px 6px;
+    border-radius: 8px;
+    background: #fff;
+    text-align: center;
+    border: 1px solid #e9eef8;
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,0.02);
+    position: relative;
+}
+
+.next-game-calendar::before {
+    content: '';
+    display:block;
+    width:6px;
+    background: linear-gradient(180deg, #0d6efd, #0056d6);
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+    position: absolute;
+    left: -6px; /* visually attached */
+    top: 6px;   /* inset so stripe doesn't exceed calendar vertically */
+    bottom: 6px;
+}
+
+.next-game-calendar .ngn-weekday {
+    font-size: 0.75rem;
+    color: #495057;
+    font-weight: 600;
+}
+.next-game-calendar .ngn-day {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1;
+}
+.next-game-calendar .ngn-month {
+    font-size: 0.75rem;
+    color: #6c757d;
+    letter-spacing: 0.06em;
+}
+
+.next-game-details .fw-bold {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+.next-game-details .text-muted.small {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 520px) {
+    .next-game-calendar { min-width: 60px; padding: 6px 4px; }
+    .next-game-calendar .ngn-day { font-size: 1.2rem; }
+}
+
+/* Right-side label sizing/alignment next to widget */
+#next-game-label {
+    min-width: 110px;
+    text-align: right;
+}
+
+@media (max-width: 576px) {
+    #next-game-label { display: none; }
 }
 
 /* Responsive Adjustments for buttons */

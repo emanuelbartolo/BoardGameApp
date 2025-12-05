@@ -6,6 +6,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let userFavorites = []; // list of bggIds favorited by the current user
     let showOnlyFavorites = false; // whether to filter collection to only favorites
 
+    // New state for search, filter, and sort
+    let searchTerm = '';
+    let minPlayersFilter = null;
+    let maxPlayersFilter = null;
+    let maxPlaytimeFilter = null;
+    let yearFilter = null;
+    let sortOption = 'name_asc'; // Default sort
+
     // --- DOM Elements ---
     // --- DOM Elements ---
     const getElement = (id) => {
@@ -42,6 +50,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const wishlistFilterButton = document.getElementById('wishlist-filter-button');
 
+    // New search, filter, and sort DOM elements
+    const searchInput = getElement('search-input');
+    const minPlayersFilterInput = getElement('min-players-filter');
+    const maxPlayersFilterInput = getElement('max-players-filter');
+    const maxPlaytimeFilterInput = getElement('max-playtime-filter');
+    const yearFilterInput = getElement('year-filter');
+    const sortBySelect = getElement('sort-by-select');
+    const clearFiltersButton = getElement('clear-filters-button');
+
     // --- Firebase Refs ---
     const db = firebase.firestore();
     const gamesCollectionRef = db.collection('games');
@@ -56,6 +73,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Localization ---
     let translations = {};
+
+    const updateWishlistButtonLabel = () => {
+        if (!wishlistFilterButton) return;
+        const baseLabel = translations.wishlist_filter_button || 'My Wishlist';
+        const onLabel = translations.wishlist_filter_button_on || `${baseLabel} (on)`;
+        wishlistFilterButton.textContent = showOnlyFavorites ? onLabel : baseLabel;
+    };
 
     async function loadTranslations(lang) {
         try {
@@ -110,11 +134,77 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchUsernames();
         } else if (viewName === 'shortlist') {
             fetchAndDisplayShortlist();
+            fetchNextGameNight();
         } else if (viewName === 'events') {
             fetchAndDisplayEvents();
             fetchAndDisplayPolls();
         } else if (viewName === 'collection') {
             loadUserWishlist().then(() => fetchAndDisplayGames());
+        }
+    }
+
+    // Fetch next upcoming event and render a small calendar card
+    async function fetchNextGameNight() {
+        const container = document.getElementById('next-game-night-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        try {
+            const today = new Date();
+            // Format YYYY-MM-DD for comparison with stored event.date strings
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            const todayStr = `${y}-${m}-${d}`;
+
+            const snap = await eventsCollectionRef.where('date', '>=', todayStr).orderBy('date', 'asc').limit(1).get();
+            if (snap.empty) {
+                // No upcoming event; leave container empty
+                return;
+            }
+
+            const doc = snap.docs[0];
+            const ev = doc.data();
+            const dateStr = ev.date; // expected 'YYYY-MM-DD'
+            const dateObj = new Date(dateStr + 'T00:00:00');
+
+            // Localized pieces
+            const weekday = dateObj.toLocaleDateString(localStorage.getItem('bgg_lang') || 'en', { weekday: 'short' });
+            const dayNum = dateObj.getDate();
+            const month = dateObj.toLocaleDateString(localStorage.getItem('bgg_lang') || 'en', { month: 'short' }).toUpperCase();
+
+            // Render clickable widget with event id so we can navigate to the Events view
+            container.innerHTML = `
+                <div class="next-game-night d-flex align-items-center" role="button" tabindex="0" data-event-id="${doc.id}">
+                    <div class="next-game-calendar text-center">
+                        <div class="ngn-weekday">${weekday}</div>
+                        <div class="ngn-day">${dayNum}</div>
+                        <div class="ngn-month">${month}</div>
+                    </div>
+                </div>
+            `;
+
+            // Attach click and keyboard handler to navigate to Events view and store selected id
+            const widgetEl = container.querySelector('.next-game-night');
+            if (widgetEl) {
+                const eventId = widgetEl.dataset.eventId;
+                const openEvent = () => {
+                    try {
+                        if (eventId) sessionStorage.setItem('selected_event_id', eventId);
+                    } catch (_) {}
+                    // navigate to events view
+                    window.location.hash = 'events';
+                };
+                widgetEl.addEventListener('click', openEvent);
+                widgetEl.addEventListener('keydown', (ev) => {
+                    if (ev.key === 'Enter' || ev.key === ' ') {
+                        ev.preventDefault();
+                        openEvent();
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('Error fetching next game night:', err);
         }
     }
 
@@ -205,6 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show wishlist filter to logged-in users
             if (wishlistFilterButton) {
                 wishlistFilterButton.classList.remove('d-none');
+                wishlistFilterButton.classList.toggle('active', showOnlyFavorites);
+                updateWishlistButtonLabel();
             }
             // Show create-event button for logged-in users
             const createEventBtn = document.getElementById('create-event-button');
@@ -415,17 +507,67 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const toNumber = (val) => {
+                const n = parseInt(val, 10);
+                return Number.isFinite(n) ? n : null;
+            };
+
+            // Build array for filtering/sorting
+            let games = snapshot.docs.map(doc => doc.data());
+
+            // Apply filters
+            games = games.filter(game => {
+                // Wishlist filter
+                if (showOnlyFavorites && currentUser && !userFavorites.includes(game.bggId)) return false;
+
+                // Search by name
+                if (searchTerm && !game.name.toLowerCase().includes(searchTerm)) return false;
+
+                const minP = toNumber(game.minPlayers);
+                const maxP = toNumber(game.maxPlayers);
+                const playTime = toNumber(game.playingTime);
+                const year = toNumber(game.year);
+
+                if (minPlayersFilter !== null && (minP === null || minP < minPlayersFilter)) return false;
+                if (maxPlayersFilter !== null && (maxP === null || maxP > maxPlayersFilter)) return false;
+                if (maxPlaytimeFilter !== null && (playTime === null || playTime > maxPlaytimeFilter)) return false;
+                if (yearFilter !== null && (year === null || year !== yearFilter)) return false;
+
+                return true;
+            });
+
+            // Apply sorting
+            games.sort((a, b) => {
+                const aName = a.name || '';
+                const bName = b.name || '';
+                const aMin = toNumber(a.minPlayers) ?? Number.MAX_SAFE_INTEGER;
+                const bMin = toNumber(b.minPlayers) ?? Number.MAX_SAFE_INTEGER;
+                const aMax = toNumber(a.maxPlayers) ?? Number.MAX_SAFE_INTEGER;
+                const bMax = toNumber(b.maxPlayers) ?? Number.MAX_SAFE_INTEGER;
+                const aYear = toNumber(a.year) ?? 0;
+                const bYear = toNumber(b.year) ?? 0;
+
+                switch (sortOption) {
+                    case 'year_asc':
+                        return aYear - bYear || aName.localeCompare(bName);
+                    case 'year_desc':
+                        return bYear - aYear || aName.localeCompare(bName);
+                    case 'min_players_asc':
+                        return aMin - bMin || aName.localeCompare(bName);
+                    case 'max_players_asc':
+                        return aMax - bMax || aName.localeCompare(bName);
+                    case 'name_asc':
+                    default:
+                        return aName.localeCompare(bName);
+                }
+            });
+
+            // Layout classes
             let colClass = 'col-xl-2 col-lg-3 col-md-4 col-6'; // Default to large-grid (same as old small-grid)
             if (currentLayout === 'small-grid') colClass = 'col-xl-1 col-lg-2 col-md-3 col-4';
             if (currentLayout === 'list') colClass = 'col-12';
 
-            snapshot.forEach(doc => {
-                const game = doc.data();
-                // If user requested wishlist-only filter, skip non-favorites
-                if (showOnlyFavorites && currentUser && !userFavorites.includes(game.bggId)) {
-                    return; // skip
-                }
-
+            games.forEach(game => {
                 const cardLayoutClass = currentLayout === 'list' ? 'list-layout' : '';
                 const isFav = currentUser && userFavorites.includes(game.bggId);
                 const favBtnClass = isFav ? 'active' : '';
@@ -464,14 +606,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     gameCard = `
                     <div class="${colClass} mb-4">
                         <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
-                            <img src="${game.image}" class="card-img-top" alt="${game.name}">
+                            <div class="game-card-image-container">
+                                <img src="${game.image}" class="card-img-top" alt="${game.name}">
+                            </div>
                             <div class="card-body">
-                                <h5 class="card-title">${game.name}</h5>
-                                <p class="card-text">${game.year || ''}</p>
-                                    <div class="d-flex gap-2">
-                                        ${favButton}
-                                        ${voteButtonHTML}
-                                    </div>
+                                <h5 class="card-title"><span class="game-title-text">${game.name}</span>${favButton}</h5>
+                                <div class="d-flex gap-2">
+                                    ${voteButtonHTML}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -618,9 +760,69 @@ document.addEventListener('DOMContentLoaded', () => {
     wishlistFilterButton.addEventListener('click', (e) => {
         showOnlyFavorites = !showOnlyFavorites;
         wishlistFilterButton.classList.toggle('active', showOnlyFavorites);
-        wishlistFilterButton.textContent = showOnlyFavorites ? 'My Wishlist (on)' : 'My Wishlist';
+        updateWishlistButtonLabel();
         fetchAndDisplayGames();
     });
+
+    // Search input
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            searchTerm = searchInput.value.trim().toLowerCase();
+            fetchAndDisplayGames();
+        });
+    }
+
+    const parseFilterNumber = (inputEl) => {
+        if (!inputEl) return null;
+        const val = inputEl.value.trim();
+        if (val === '') return null;
+        const n = parseInt(val, 10);
+        return Number.isFinite(n) ? n : null;
+    };
+
+    const attachNumberFilter = (inputEl, setter) => {
+        if (!inputEl) return;
+        inputEl.addEventListener('input', () => {
+            setter(parseFilterNumber(inputEl));
+            fetchAndDisplayGames();
+        });
+    };
+
+    attachNumberFilter(minPlayersFilterInput, (val) => { minPlayersFilter = val; });
+    attachNumberFilter(maxPlayersFilterInput, (val) => { maxPlayersFilter = val; });
+    attachNumberFilter(maxPlaytimeFilterInput, (val) => { maxPlaytimeFilter = val; });
+    attachNumberFilter(yearFilterInput, (val) => { yearFilter = val; });
+
+    if (sortBySelect) {
+        sortBySelect.addEventListener('change', () => {
+            sortOption = sortBySelect.value;
+            fetchAndDisplayGames();
+        });
+    }
+
+    if (clearFiltersButton) {
+        clearFiltersButton.addEventListener('click', () => {
+            searchTerm = '';
+            minPlayersFilter = null;
+            maxPlayersFilter = null;
+            maxPlaytimeFilter = null;
+            yearFilter = null;
+            sortOption = 'name_asc';
+            showOnlyFavorites = false;
+
+            if (searchInput) searchInput.value = '';
+            if (minPlayersFilterInput) minPlayersFilterInput.value = '';
+            if (maxPlayersFilterInput) maxPlayersFilterInput.value = '';
+            if (maxPlaytimeFilterInput) maxPlaytimeFilterInput.value = '';
+            if (yearFilterInput) yearFilterInput.value = '';
+            if (sortBySelect) sortBySelect.value = 'name_asc';
+            if (wishlistFilterButton) {
+                wishlistFilterButton.classList.remove('active');
+                updateWishlistButtonLabel();
+            }
+            fetchAndDisplayGames();
+        });
+    }
 
     // Reusable function to show the game details modal
     async function showGameDetailsModal(bggId) {
@@ -1318,6 +1520,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Modify updateUserDisplay to call fetchAndDisplayUsers when admin logs in
     // --- App Initialization ---
     updateUserDisplay();
+    // Ensure the saved layout is applied on initial load so large/small/list render correctly
+    applyLayout(currentLayout);
     handleHashChange(); // Handle initial load based on URL hash
 
     // Initial fetch for polls when events view might be active or navigated to

@@ -11,27 +11,34 @@
 <body>
 
     <div class="container">
-        <header class="py-3 mb-4 border-bottom">
-            <div class="mb-2">
+        <header class="mb-4">
+            <!-- Top strip: login info and language on the very top -->
+            <div class="top-strip d-flex justify-content-end align-items-center py-1">
+                <div id="user-display" class="me-3 d-flex align-items-center"></div>
+                <div class="me-1">
+                    <select id="language-switcher" class="form-select form-select-sm">
+                        <option value="en">English</option>
+                        <option value="de">Deutsch</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- App title banner -->
+            <div class="app-banner bg-light border rounded-2 py-2 mb-2">
                 <a href="#shortlist" class="d-flex align-items-center text-dark text-decoration-none">
-                    <span class="fs-4" data-i18n-key="title">Board Game Group Planner</span>
+                    <span class="fs-4 ms-2" data-i18n-key="title">Board Game Group Planner</span>
                 </a>
             </div>
+
+            <!-- Navigation below the banner -->
             <div class="d-flex flex-wrap justify-content-between align-items-center">
-                <ul class="nav nav-pills">
+                <ul class="nav nav-pills w-100" style="flex-wrap:wrap;">
                     <li class="nav-item d-none"><a href="#shortlist" class="nav-link" id="nav-shortlist" data-i18n-key="nav_shortlist">Shortlist</a></li>
                     <li class="nav-item d-none"><a href="#events" class="nav-link" id="nav-events" data-i18n-key="nav_events">Events</a></li>
                     <li class="nav-item d-none"><a href="#collection" class="nav-link" id="nav-collection" data-i18n-key="nav_collection">Whole Collection</a></li>
                     <li class="nav-item"><a href="#admin" class="nav-link d-none" id="nav-admin" data-i18n-key="nav_admin">Admin</a></li>
                     <li class="nav-item"><a href="#login" class="nav-link" id="nav-login" data-i18n-key="nav_login">Login</a></li>
                 </ul>
-                <div id="user-display" class="d-flex align-items-center"></div>
-                <div class="ms-3">
-                    <select id="language-switcher" class="form-select form-select-sm">
-                        <option value="en">English</option>
-                        <option value="de">Deutsch</option>
-                    </select>
-                </div>
             </div>
         </header>
 
@@ -59,13 +66,71 @@
                 <div class="mb-3">
                     <h2 data-i18n-key="collection_heading">Game Collection</h2>
                     <p class="text-muted" data-i18n-key="collection_instruction">Browse the full collection of available games. Click the star to add a game to your personal wishlist.</p>
+                    
+                    <div class="row mb-3 align-items-end" id="filter-sort-controls">
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <input type="text" id="search-input" class="form-control" data-i18n-key="search_placeholder" placeholder="Search by name...">
+                        </div>
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <div class="input-group">
+                                <span class="input-group-text" data-i18n-key="sort_by_label">Sort by:</span>
+                                <select id="sort-by-select" class="form-select">
+                                    <option value="name_asc" data-i18n-key="sort_name_asc">Name (A-Z)</option>
+                                    <option value="year_asc" data-i18n-key="sort_year_asc">Year (Oldest First)</option>
+                                    <option value="year_desc" data-i18n-key="sort_year_desc">Year (Newest First)</option>
+                                    <option value="min_players_asc" data-i18n-key="sort_min_players_asc">Min Players (Low to High)</option>
+                                    <option value="max_players_asc" data-i18n-key="sort_max_players_asc">Max Players (Low to High)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4 mb-2 text-md-end">
+                            <button class="btn btn-outline-secondary w-100 w-md-auto" type="button" data-bs-toggle="collapse" data-bs-target="#filter-collapse" aria-expanded="false" aria-controls="filter-collapse" data-i18n-key="filters_toggle">Filters</button>
+                        </div>
+                    </div>
+
+                    <div class="collapse" id="filter-collapse">
+                        <div class="card card-body mb-3">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-6 col-lg-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text" data-i18n-key="filter_min_players_label">Min Players:</span>
+                                        <input type="number" id="min-players-filter" class="form-control" min="0">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 col-lg-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text" data-i18n-key="filter_max_players_label">Max Players:</span>
+                                        <input type="number" id="max-players-filter" class="form-control" min="0">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 col-lg-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text" data-i18n-key="filter_max_playtime_label">Max Play Time (min):</span>
+                                        <input type="number" id="max-playtime-filter" class="form-control" min="0">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 col-lg-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text" data-i18n-key="filter_year_label">Year Published:</span>
+                                        <input type="number" id="year-filter" class="form-control" min="1900" max="2100">
+                                    </div>
+                                </div>
+                                <div class="col-12 col-lg-9 d-flex flex-wrap gap-2 mt-2">
+                                    <button id="wishlist-filter-button" class="btn btn-outline-primary btn-sm d-none" data-i18n-key="wishlist_filter_button">My Wishlist</button>
+                                </div>
+                                <div class="col-12 col-lg-3 mt-2 text-lg-end">
+                                    <button id="clear-filters-button" class="btn btn-outline-secondary w-100" data-i18n-key="clear_filters_button">Clear Filters</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="d-flex justify-content-between align-items-center mt-2">
                         <div class="btn-group me-2" role="group" id="layout-switcher">
                             <button type="button" class="btn btn-outline-secondary active" data-layout="large-grid" data-i18n-key="layout_large_grid">Large Grid</button>
                             <button type="button" class="btn btn-outline-secondary" data-layout="small-grid" data-i18n-key="layout_small_grid">Small Grid</button>
                             <button type="button" class="btn btn-outline-secondary" data-layout="list" data-i18n-key="layout_list">List</button>
                         </div>
-                        <button id="wishlist-filter-button" class="btn btn-outline-primary btn-sm d-none" data-i18n-key="wishlist_filter_button">My Wishlist</button>
                     </div>
                 </div>
 
@@ -76,7 +141,13 @@
 
             <!-- Shortlist View -->
             <section id="shortlist-view" class="d-none">
-                <h2 data-i18n-key="shortlist_heading">Game Shortlist</h2>
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <h2 class="mb-0" data-i18n-key="shortlist_heading">Game Shortlist</h2>
+                    <div class="d-flex align-items-center">
+                        <div id="next-game-label" class="text-muted small me-2 text-end" data-i18n-key="next_game_night_label">Next Game Night:</div>
+                        <div id="next-game-night-container"></div>
+                    </div>
+                </div>
                 <p class="text-muted" data-i18n-key="shortlist_instruction">Vote for the games you'd like to play at the next event!</p>
                 <div id="shortlist-games" class="row"></div>
             </section>
