@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const eventsCollectionRef = db.collection('events');
     const pollsCollectionRef = db.collection('polls'); // New: polls collection
     const usersCollectionRef = db.collection('users'); // New: users collection
+    const summariesCollectionRef = db.collection('game_summaries'); // New: summaries collection
 
     // --- Core Functions ---
 
@@ -344,15 +345,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchAndDisplayShortlist() {
         // Use onSnapshot for real-time updates
-        shortlistCollectionRef.orderBy('name').onSnapshot(snapshot => {
+        shortlistCollectionRef.onSnapshot(snapshot => {
             shortlistGamesContainer.innerHTML = ''; // Clear old list
             if (snapshot.empty) {
                 shortlistGamesContainer.innerHTML = '<p>No games on the shortlist yet.</p>';
                 return;
             }
-            snapshot.forEach(doc => {
-                const game = doc.data();
+
+            const games = snapshot.docs.map(doc => doc.data());
+            games.sort((a, b) => (b.voters?.length || 0) - (a.voters?.length || 0));
+            
+            const maxVotes = games.length > 0 ? (games[0].voters?.length || 0) : 0;
+
+            games.forEach(game => {
                 const voters = game.voters || [];
+                const voteCount = voters.length;
+                const isTopVoted = maxVotes > 0 && voteCount === maxVotes;
+                const badgeClass = isTopVoted ? 'top-voted' : '';
                 const userHasVoted = currentUser && voters.includes(currentUser);
                 // Single toggle button: 'Vote' to support, 'Voted ✓' when already supported
                 const btnText = userHasVoted ? 'Voted ✓' : 'Vote';
@@ -363,6 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const gameCard = `
                     <div class="col-12 mb-4">
                         <div class="card game-card list-layout" data-bgg-id="${game.bggId}">
+                            <div class="vote-count-badge ${badgeClass}">${voters.length}</div>
                             <img src="${game.image}" class="card-img-top" alt="${game.name}">
                             <div class="card-body">
                                 <h5 class="card-title">${game.name}</h5>
@@ -372,8 +382,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <button class="${btnClass}" data-bgg-id="${game.bggId}" title="${btnTitle}" aria-pressed="${userHasVoted}">${btnText}</button>
                                         ${removeBtn}
                                     </div>
-                                    <span class="badge bg-primary" title="${voters.join(', ')}">
-                                        ${voters.length} votes
+                                    <span class="voter-names" title="${voters.join(', ')}">
+                                        ${voters.length} vote${voters.length !== 1 ? 's' : ''}
                                     </span>
                                 </div>
                             </div>
@@ -647,12 +657,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 document.getElementById('game-modal-body').innerHTML = detailsHtml;
 
-                // --- Check for and display existing summary ---
+                // --- Check for and display existing summary from the new collection ---
                 const lang = localStorage.getItem('bgg_lang') || 'en';
                 const summaryField = `summary_${lang}`;
-                if (game[summaryField]) {
+                const summaryDoc = await summariesCollectionRef.doc(currentlySelectedBggId).get();
+                if (summaryDoc.exists && summaryDoc.data()[summaryField]) {
                     const summaryContainer = document.getElementById('ai-summary-container');
-                    summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${game[summaryField]}</p>`;
+                    summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summaryDoc.data()[summaryField]}</p>`;
                 }
                 // --- End summary check ---
 
@@ -710,12 +721,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 document.getElementById('game-modal-body').innerHTML = detailsHtml;
 
-                // --- Check for and display existing summary ---
+                // --- Check for and display existing summary from the new collection ---
                 const lang = localStorage.getItem('bgg_lang') || 'en';
                 const summaryField = `summary_${lang}`;
-                if (game[summaryField]) {
+                const summaryDoc = await summariesCollectionRef.doc(currentlySelectedBggId).get();
+                if (summaryDoc.exists && summaryDoc.data()[summaryField]) {
                     const summaryContainer = document.getElementById('ai-summary-container');
-                    summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${game[summaryField]}</p>`;
+                    summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summaryDoc.data()[summaryField]}</p>`;
                 }
                 // --- End summary check ---
 
@@ -764,9 +776,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- Save summary to Firestore ---
             const summaryField = `summary_${lang}`;
-            await gamesCollectionRef.doc(currentlySelectedBggId).update({
+            await summariesCollectionRef.doc(currentlySelectedBggId).set({
                 [summaryField]: summary
-            });
+            }, { merge: true });
             // --- End save summary ---
 
         } catch (error) {
