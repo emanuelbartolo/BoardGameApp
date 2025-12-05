@@ -90,15 +90,40 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(views).forEach(view => view && view.classList.add('d-none'));
         if (views[viewName]) {
             views[viewName].classList.remove('d-none');
+        } else {
+            console.warn(`View element not found for: ${viewName}`);
         }
+        // Update active class for nav links
         Object.values(navLinks).forEach(link => link && link.classList.remove('active'));
         if (navLinks[viewName]) {
             navLinks[viewName].classList.add('active');
         }
 
+        // Update URL hash without triggering hashchange event
+        if (window.location.hash !== `#${viewName}`) {
+            history.pushState(null, null, `#${viewName}`);
+        }
+
         // Special handling for login view: ensure usernames are fetched
         if (viewName === 'login') {
             fetchUsernames();
+        } else if (viewName === 'shortlist') {
+            fetchAndDisplayShortlist();
+        } else if (viewName === 'events') {
+            fetchAndDisplayEvents();
+            fetchAndDisplayPolls();
+        } else if (viewName === 'collection') {
+            loadUserWishlist().then(() => fetchAndDisplayGames());
+        }
+    }
+
+    function handleHashChange() {
+        const hash = window.location.hash.substring(1); // Remove the #
+        if (hash && views[hash]) {
+            showView(hash);
+        } else {
+            // Default to login view if hash is empty or invalid
+            showView('login');
         }
     }
 
@@ -541,15 +566,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Navigation
-    navLinks.login.addEventListener('click', (e) => { e.preventDefault(); showView('login'); });
-    navLinks.collection.addEventListener('click', (e) => { e.preventDefault(); showView('collection'); });
-    navLinks.shortlist.addEventListener('click', (e) => { 
-        e.preventDefault(); 
-        showView('shortlist');
-        fetchAndDisplayShortlist(); // Fetch shortlist when view is shown
-    });
-    navLinks.admin.addEventListener('click', (e) => { e.preventDefault(); showView('admin'); });
-    navLinks.events.addEventListener('click', (e) => { e.preventDefault(); showView('events'); fetchAndDisplayEvents(); });
+    navLinks.login.addEventListener('click', (e) => { e.preventDefault(); window.location.hash = 'login'; });
+    navLinks.collection.addEventListener('click', (e) => { e.preventDefault(); window.location.hash = 'collection'; });
+    navLinks.shortlist.addEventListener('click', (e) => { e.preventDefault(); window.location.hash = 'shortlist'; });
+    navLinks.admin.addEventListener('click', (e) => { e.preventDefault(); window.location.hash = 'admin'; });
+    navLinks.events.addEventListener('click', (e) => { e.preventDefault(); window.location.hash = 'events'; });
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
 
     // Layout Switcher
     layoutSwitcher.addEventListener('click', (e) => {
@@ -1229,27 +1253,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Modify updateUserDisplay to call fetchAndDisplayUsers when admin logs in
     // --- App Initialization ---
     updateUserDisplay();
-    if (currentUser) {
-        showView('collection');
-        applyLayout(currentLayout); // Apply saved layout on load
-        loadUserWishlist().then(() => fetchAndDisplayGames());
-    } else {
-        showView('login');
-    }
+    handleHashChange(); // Handle initial load based on URL hash
 
     // Initial fetch for polls when events view might be active or navigated to
-    if (views.events && !views.events.classList.contains('d-none')) {
-        fetchAndDisplayEvents();
-        fetchAndDisplayPolls();
-    }
+    // This is now handled by handleHashChange and showView functions
 
     // Ensure polls are fetched when navigating to events view
-    navLinks.events.addEventListener('click', (e) => {
-        e.preventDefault();
-        showView('events');
-        fetchAndDisplayEvents();
-        fetchAndDisplayPolls();
-    });
+    // This is now handled by showView function
 
     // --- Localization Initialization ---
     const languageSwitcher = document.getElementById('language-switcher');
