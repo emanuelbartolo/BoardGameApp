@@ -115,6 +115,14 @@ section {
         font-size: 0.75rem;
         padding: 0.25rem 0.5rem;
     }
+
+    /* Temporary borders for debugging polls visibility on mobile */
+    #events-view {
+        border: 2px solid red !important;
+    }
+    #polls-list {
+        border: 2px solid green !important;
+    }
 }
 
 
