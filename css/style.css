@@ -147,23 +147,25 @@ section {
     border-color: var(--bs-primary);
 }
 
-/* Favorite star button: solid yellow background when active */
-.btn.favorite-toggle {
-    transition: background-color 0.2s ease;
-    background-color: #fff; /* Neutral background for non-active state */
-    font-size: 1.2rem !important; /* Larger star, force important */
-    width: 32px !important;
-    height: 32px !important;
-    display: flex;
+/* Favorite star button: compact icon-only with larger hit area */
+.favorite-toggle {
+    background: transparent;
+    border: none;
+    font-size: 1.1rem !important;
+    padding: 6px 8px !important; /* comfortable hit area */
+    line-height: 1;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0 !important; /* Override .btn padding */
-    line-height: 1;
-    border: 1px solid #ced4da;
+    border-radius: 6px;
+}
+.favorite-toggle:focus {
+    outline: 2px solid rgba(13,110,253,0.15);
+    outline-offset: 2px;
 }
 .favorite-toggle.active {
     background-color: #ffc107;
-    border-color: #ffc107;
+    color: #212529;
 }
 
 /* Login View Styles */
@@ -190,8 +192,17 @@ section {
 }
 .app-banner {
     background-color: #f1f3f5; /* subtle grey */
+    width: 100vw; /* span full viewport */
+    margin-left: calc(50% - 50vw); /* neutralize container centering */
+    margin-right: calc(50% - 50vw);
+    padding: 0.5rem 0; /* vertical padding */
 }
 .app-banner a { text-decoration: none; }
+.app-banner .app-title {
+    font-family: 'Rubik', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
 
 /* Next Game Night preview styles */
 .next-game-night {
@@ -353,6 +364,20 @@ section {
 .vote-count-badge.top-voted {
     background-color: #ffc107;
     color: #212529;
+}
+
+/* Temporary highlight for navigated-to event */
+.highlighted-event {
+    animation: highlight-pulse 3s ease-in-out forwards;
+    box-shadow: 0 6px 20px rgba(13,110,253,0.12);
+    border-radius: 8px;
+    background-color: #fffbea;
+}
+
+@keyframes highlight-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(13,110,253,0.18); }
+    30% { box-shadow: 0 8px 24px rgba(13,110,253,0.12); }
+    100% { box-shadow: 0 0 0 0 rgba(13,110,253,0); }
 }
 
 

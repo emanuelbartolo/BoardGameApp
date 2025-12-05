@@ -73,6 +73,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Localization ---
     let translations = {};
+    // Debounce utility for input handlers to reduce re-renders
+    const debounce = (fn, ms = 250) => {
+        let t;
+        return (...args) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn(...args), ms);
+        };
+    };
 
     const updateWishlistButtonLabel = () => {
         if (!wishlistFilterButton) return;
@@ -471,7 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <p class="card-text">${game.year || ''}</p>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div class="d-flex align-items-center">
-                                        <button class="${btnClass}" data-bgg-id="${game.bggId}" title="${btnTitle}" aria-pressed="${userHasVoted}">${btnText}</button>
+                                        <button class="${btnClass}" data-bgg-id="${game.bggId}" title="${btnTitle}" aria-label="${btnTitle}" aria-pressed="${userHasVoted}">${btnText}</button>
                                         ${removeBtn}
                                     </div>
                                     <span class="voter-names" title="${voters.join(', ')}">
@@ -571,7 +579,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cardLayoutClass = currentLayout === 'list' ? 'list-layout' : '';
                 const isFav = currentUser && userFavorites.includes(game.bggId);
                 const favBtnClass = isFav ? 'active' : '';
-                const favButton = `<button class="btn btn-sm btn-outline-warning favorite-toggle ${favBtnClass}" data-bgg-id="${game.bggId}" title="Toggle favorite">${isFav ? '★' : '☆'}</button>`;
+                const favAria = `Toggle favorite for ${game.name}`;
+                const favButton = `<button class="btn btn-sm favorite-toggle ${favBtnClass}" data-bgg-id="${game.bggId}" aria-label="${favAria}" title="${favAria}">${isFav ? '★' : '☆'}</button>`;
                 // Show Shortlist button on collection page only to admin. If the game is already shortlisted, mark as voted/highlighted.
                 let voteButtonHTML = '';
                 if (currentUser === adminUser) {
@@ -581,7 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isVotedByAdmin = voters.includes(currentUser);
                     const btnText = isShortlisted ? 'Shortlisted ✓' : 'Shortlist';
                     const btnClass = isVotedByAdmin ? 'voted' : (isShortlisted ? 'shortlisted' : '');
-                    voteButtonHTML = `<button class="btn btn-sm btn-vote add-to-shortlist-button ${btnClass}" data-bgg-id="${game.bggId}" aria-pressed="${isVotedByAdmin}">${btnText}</button>`;
+                    voteButtonHTML = `<button class="btn btn-sm btn-vote add-to-shortlist-button ${btnClass}" data-bgg-id="${game.bggId}" aria-pressed="${isVotedByAdmin}" aria-label="${btnText} \u2014 ${game.name}">${btnText}</button>`;
                 }
                 
                 let gameCard = '';
@@ -590,7 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="${colClass} mb-4">
                         <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
                             <div class="game-card-image-container">
-                                <img src="${game.image}" class="card-img-top" alt="${game.name}">
+                                <img src="${game.image}" loading="lazy" class="card-img-top" alt="${game.name}">
                                 ${favButton}
                             </div>
                             <div class="card-body">
@@ -607,7 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="${colClass} mb-4">
                         <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
                             <div class="game-card-image-container">
-                                <img src="${game.image}" class="card-img-top" alt="${game.name}">
+                                <img src="${game.image}" loading="lazy" class="card-img-top" alt="${game.name}">
                             </div>
                             <div class="card-body">
                                 <h5 class="card-title"><span class="game-title-text">${game.name}</span>${favButton}</h5>
@@ -766,10 +775,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Search input
     if (searchInput) {
-        searchInput.addEventListener('input', () => {
+        const doSearch = debounce(() => {
             searchTerm = searchInput.value.trim().toLowerCase();
             fetchAndDisplayGames();
-        });
+        }, 300);
+        searchInput.addEventListener('input', doSearch);
     }
 
     const parseFilterNumber = (inputEl) => {
@@ -782,10 +792,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const attachNumberFilter = (inputEl, setter) => {
         if (!inputEl) return;
-        inputEl.addEventListener('input', () => {
+        const doFilter = debounce(() => {
             setter(parseFilterNumber(inputEl));
             fetchAndDisplayGames();
-        });
+        }, 300);
+        inputEl.addEventListener('input', doFilter);
     };
 
     attachNumberFilter(minPlayersFilterInput, (val) => { minPlayersFilter = val; });
@@ -1187,7 +1198,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const e = doc.data();
                     const when = e.date ? `${e.date} ${e.time || ''}` : (e.time || '');
                     const removeBtn = (currentUser === adminUser) ? `<button class="btn btn-sm btn-outline-danger ms-2 remove-event-button" data-id="${doc.id}">Delete</button>` : '';
-                    html += `<div class="list-group-item d-flex justify-content-between align-items-start">
+                        html += `<div id="event-${doc.id}" class="list-group-item d-flex justify-content-between align-items-start" data-event-id="${doc.id}">
                         <div>
                             <div class="fw-bold">${e.title}</div>
                             <div class="text-muted">${when} — ${e.location || ''}</div>
@@ -1198,6 +1209,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 html += '</div>';
                 list.innerHTML = html;
+                // If navigated from the next-game widget, highlight and scroll to the selected event
+                try {
+                    const selectedId = sessionStorage.getItem('selected_event_id');
+                    if (selectedId) {
+                        const el = document.getElementById(`event-${selectedId}`);
+                        if (el) {
+                            // smooth scroll and add highlight class
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            el.classList.add('highlighted-event');
+                            // remove highlight after a short delay
+                            setTimeout(() => el.classList.remove('highlighted-event'), 3000);
+                        }
+                        sessionStorage.removeItem('selected_event_id');
+                    }
+                } catch (err) {
+                    console.warn('Could not navigate to selected event:', err);
+                }
             }, err => {
                 console.error('Error fetching events:', err);
                 list.innerHTML = '<p class="text-danger">Could not load events.</p>';
