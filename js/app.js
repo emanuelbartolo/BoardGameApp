@@ -1037,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                     const dayOfWeek = days[dateObj.getDay()];
 
-                    html += `<div class="d-flex align-items-center mb-1">
+                    html += `<div class="d-flex align-items-center flex-wrap mb-1">
                         <button class="btn btn-sm ${voteBtnClass} me-2 vote-for-option" data-poll-id="${pollId}" data-option-index="${index}" ${!currentUser ? 'disabled' : ''}>
                             ${isVotedByCurrentUser ? '✓ Voted' : 'Vote'}
                         </button>
