@@ -50,5 +50,7 @@
   "ai_summary_heading": "AI Summary:",
   "logged_in_as": "Logged in as:",
   "logout_button": "Logout",
-  "not_logged_in": "Not logged in"
+  "not_logged_in": "Not logged in",
+  "no_events_yet": "No events yet.",
+  "no_polls_yet": "No polls yet."
 }

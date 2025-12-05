@@ -50,5 +50,7 @@
   "ai_summary_heading": "KI-Zusammenfassung:",
   "logged_in_as": "Angemeldet als:",
   "logout_button": "Abmelden",
-  "not_logged_in": "Nicht angemeldet"
+  "not_logged_in": "Nicht angemeldet",
+  "no_events_yet": "Noch keine Termine.",
+  "no_polls_yet": "Noch keine Umfragen."
 }

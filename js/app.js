@@ -234,7 +234,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 t.set(docRef, { favorites: favs });
                 userFavorites = favs;
             });
-            fetchAndDisplayGames();
+            // Determine if re-render is needed based on showOnlyFavorites filter
+            if (showOnlyFavorites) {
+                await fetchAndDisplayGames(); // Re-render if filtering by favorites
+            } else {
+                // Only update the specific button's UI if not re-rendering the whole list
+                const favButton = document.querySelector(`.favorite-toggle[data-bgg-id="${bggId}"]`);
+                if (favButton) {
+                    favButton.classList.toggle('active', userFavorites.includes(bggId));
+                    favButton.textContent = userFavorites.includes(bggId) ? '★' : '☆';
+                }
+            }
         } catch (err) {
             console.error('Error toggling favorite:', err);
             alert('Could not update your wishlist.');
@@ -627,6 +637,69 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Show Game Details Modal for Shortlist
+    shortlistGamesContainer.addEventListener('click', async (e) => {
+        const card = e.target.closest('.game-card');
+        // Ignore clicks on the vote button for opening details
+        if (card && !e.target.classList.contains('shortlist-toggle-button') && !e.target.classList.contains('remove-shortlist-button')) {
+            currentlySelectedBggId = card.dataset.bggId; // Store the ID
+            const gameDoc = await gamesCollectionRef.doc(currentlySelectedBggId).get();
+            if (gameDoc.exists) {
+                const game = gameDoc.data();
+                document.getElementById('game-modal-title').textContent = game.name;
+                
+                let detailsHtml = `
+                    <div class="row">
+                        <div class="col-md-4">
+                            <img src="${game.image}" class="img-fluid rounded" alt="${game.name}">
+                        </div>
+                        <div class="col-md-8">
+                `;
+
+                // Conditionally add details if they exist and are not 'N/A'
+                if (game.minPlayers && game.minPlayers !== 'N/A') {
+                    detailsHtml += `<p><strong>Players:</strong> ${game.minPlayers} - ${game.maxPlayers}</p>`;
+                }
+                if (game.playingTime && game.playingTime !== 'N/A') {
+                    detailsHtml += `<p><strong>Play Time:</strong> ${game.playingTime} min</p>`;
+                }
+                if (game.rating && game.rating !== 'N/A') {
+                    detailsHtml += `<p><strong>Rating:</strong> ${game.rating} / 10</p>`;
+                }
+                if (game.year) {
+                    detailsHtml += `<p><strong>Year Published:</strong> ${game.year}</p>`;
+                }
+
+                // Add the styled BGG link
+                detailsHtml += `
+                    <p class="mt-3">
+                        <a href="https://boardgamegeek.com/boardgame/${game.bggId}" target="_blank" class="btn btn-sm btn-outline-primary">${translations.modal_view_on_bgg_button || 'View on BGG'}</a>
+                    </p>
+                    <hr>
+                    <div id="ai-summary-container"></div>
+                `;
+
+                detailsHtml += `
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('game-modal-body').innerHTML = detailsHtml;
+
+                // --- Check for and display existing summary ---
+                const lang = localStorage.getItem('bgg_lang') || 'en';
+                const summaryField = `summary_${lang}`;
+                if (game[summaryField]) {
+                    const summaryContainer = document.getElementById('ai-summary-container');
+                    summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${game[summaryField]}</p>`;
+                }
+                // --- End summary check ---
+
+                gameDetailsModal.show();
+            }
+        }
+    });
+
     // --- API and AI Functions ---
 
     // Generate AI Summary
@@ -815,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
             list.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
             eventsCollectionRef.orderBy('date', 'asc').onSnapshot(snapshot => {
                 if (snapshot.empty) {
-                    list.innerHTML = '<p>No events yet.</p>';
+                    list.innerHTML = `<p>${translations.no_events_yet || 'No events yet.'}</p>`;
                     return;
                 }
                 let html = '<div class="list-group">';
@@ -934,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pollsListContainer.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
         pollsCollectionRef.orderBy('createdAt', 'desc').onSnapshot(snapshot => {
             if (snapshot.empty) {
-                pollsListContainer.innerHTML = '<p>No polls yet.</p>';
+                pollsListContainer.innerHTML = `<p>${translations.no_polls_yet || 'No polls yet.'}</p>`;
                 return;
             }
             let html = '<div class="list-group">';
