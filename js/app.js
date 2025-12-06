@@ -322,6 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const savePollButton = getElement('save-poll-button');
     const pollOptionsContainer = getElement('poll-options-container');
     const createPollModal = new bootstrap.Modal(getElement('create-poll-modal'));
+    const gameDetailsModal = new bootstrap.Modal(getElement('game-details-modal'));
 
     // New login elements
     const usernameInput = getElement('username-input');
