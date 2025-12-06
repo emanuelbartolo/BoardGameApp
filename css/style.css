@@ -168,6 +168,27 @@ section {
     color: #212529;
 }
 
+/* High-contrast sign-out button on active group row */
+.list-group .list-group-item.active .group-signout-btn {
+    background-color: #ffffff; /* white circle to contrast the active blue */
+    color: #c82333; /* bootstrap danger-ish red for the icon */
+    border-color: rgba(0,0,0,0.08);
+}
+.list-group .list-group-item.active .group-signout-btn svg {
+    filter: none; /* ensure the SVG uses currentColor */
+}
+.list-group .list-group-item.active .group-signout-btn:hover {
+    background-color: #fff7f7;
+    color: #a71d2a;
+}
+
+/* Slightly increase prominence (size) on small screens if needed */
+@media (max-width: 576px) {
+    .list-group .list-group-item.active .group-signout-btn {
+        padding: 0.35rem 0.45rem;
+    }
+}
+
 /* Login View Styles */
 #login-view {
     max-width: 400px;

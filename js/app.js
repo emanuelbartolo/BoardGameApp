@@ -94,20 +94,214 @@ document.addEventListener('DOMContentLoaded', () => {
     const groupJoinCodeInput = getElement('group-join-code');
     const groupModalStatus = getElement('group-modal-status');
     const groupModal = groupModalEl ? new bootstrap.Modal(groupModalEl) : null;
-    const groupJoinSelect = getElement('group-join-select');
+    const groupJoinList = getElement('group-join-list');
+    const groupJoinSelectedInput = getElement('group-join-selected-id');
 
     if (groupJoinBtn) {
         groupJoinBtn.addEventListener('click', async () => {
             if (groupModalStatus) groupModalStatus.textContent = '';
             if (groupJoinCodeInput) groupJoinCodeInput.value = '';
-            if (groupJoinSelect) {
+            if (groupJoinList) {
                 // populate user's groups if logged in
+                if (groupModalStatus) groupModalStatus.textContent = '';
+                if (groupJoinSelectedInput) groupJoinSelectedInput.value = '';
                 await populateUserGroupSelect();
-                groupJoinSelect.value = '';
             }
             if (groupModal) groupModal.show();
         });
     }
+
+    // Wire the active-group button to reflect modal state (pressed/active)
+    (function wireActiveGroupButton() {
+        const activeBtn = document.getElementById('active-group-display');
+        const modalEl = document.getElementById('group-modal');
+        if (!modalEl) return;
+
+        // Update button state when modal shows
+        modalEl.addEventListener('show.bs.modal', () => {
+            if (activeBtn) {
+                activeBtn.setAttribute('aria-pressed', 'true');
+                activeBtn.classList.add('active');
+            }
+        });
+
+        // Reset button state when modal hides
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            if (activeBtn) {
+                activeBtn.setAttribute('aria-pressed', 'false');
+                activeBtn.classList.remove('active');
+            }
+        });
+    })();
+
+    // Helper: return array of groups the current user belongs to: [{id,name},...]
+    async function getUserGroups() {
+        if (!currentUser) return [];
+        try {
+            // Note: querying a collectionGroup by documentId() requires a full document path
+            // (e.g. 'groups/<groupId>/members/<memberId>'). Our member docs are keyed
+            // by username (e.g. 'Emily') which is NOT a full path, and that causes
+            // Firestore to throw an "odd number of segments" error. Only attempt the
+            // fast collectionGroup query if `currentUser` already looks like a full
+            // document path (contains a '/'). Otherwise skip to the fallback scan.
+            if (currentUser && currentUser.includes('/')) {
+                const q = db.collectionGroup('members').where(firebase.firestore.FieldPath.documentId(), '==', currentUser);
+                const snap = await q.get();
+                if (!snap.empty) {
+                    const groupRefs = [];
+                    const seen = new Set();
+                    for (const mdoc of snap.docs) {
+                        const membersColl = mdoc.ref.parent;
+                        const groupRef = membersColl.parent;
+                        if (groupRef && !seen.has(groupRef.path)) {
+                            seen.add(groupRef.path);
+                            groupRefs.push(groupRef);
+                        }
+                    }
+                    const groupDocs = await Promise.all(groupRefs.map(r => r.get().catch(() => null)));
+                    const options = [];
+                    groupDocs.forEach(gdoc => {
+                        if (!gdoc || !gdoc.exists) return;
+                        const data = gdoc.data() || {};
+                        options.push({ id: gdoc.id, name: data.name || gdoc.id });
+                    });
+                    options.sort((a, b) => a.name.localeCompare(b.name));
+                    return options;
+                }
+            }
+        } catch (err) {
+            console.warn('collectionGroup approach failed in getUserGroups():', err);
+        }
+
+        // Fallback
+        try {
+            const groupsSnap = await db.collection('groups').get();
+            if (groupsSnap.empty) return [];
+            const options = [];
+            await Promise.all(groupsSnap.docs.map(async (gdoc) => {
+                try {
+                    const memRef = db.collection('groups').doc(gdoc.id).collection('members').doc(currentUser);
+                    const memSnap = await memRef.get();
+                    if (memSnap.exists) {
+                        const data = gdoc.data() || {};
+                        options.push({ id: gdoc.id, name: data.name || gdoc.id });
+                    }
+                } catch (e) {}
+            }));
+            options.sort((a, b) => a.name.localeCompare(b.name));
+            return options;
+        } catch (err) {
+            console.error('getUserGroups fallback error:', err);
+            return [];
+        }
+    }
+
+    // Populate the small dropdown inside the group-actions modal and return whether groups exist
+    async function populateGaGroupSelect() {
+        const sel = document.getElementById('ga-group-select');
+        const changeBtn = document.getElementById('ga-change');
+        const selectBtn = document.getElementById('ga-select');
+        const area = document.getElementById('ga-select-area');
+        if (!sel) return false;
+        sel.innerHTML = '';
+        const groups = await getUserGroups();
+        if (!groups || groups.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = translations.no_groups_found || 'No groups found';
+            sel.appendChild(opt);
+            if (changeBtn) changeBtn.disabled = true;
+            if (selectBtn) selectBtn.disabled = true;
+            if (area) area.classList.add('d-none');
+            return false;
+        }
+        groups.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.id;
+            opt.textContent = g.name;
+            sel.appendChild(opt);
+        });
+        if (changeBtn) changeBtn.disabled = false;
+        if (selectBtn) selectBtn.disabled = false;
+        return true;
+    }
+
+    // When the actions modal shows, configure which controls to display
+    (function wireGroupActionsModal() {
+        const modalEl = document.getElementById('group-modal');
+        if (!modalEl) return;
+        modalEl.addEventListener('show.bs.modal', async () => {
+            // Ensure active group name field is up-to-date
+            updateActiveGroupDisplay();
+            // Populate the full user group list so the modal shows available groups
+            // and highlights the active group when the modal opens.
+            try { await populateUserGroupSelect(); } catch (e) { console.warn('Could not populate group list on modal show', e); }
+
+            const changeBtn = document.getElementById('ga-change');
+            const selectBtn = document.getElementById('ga-select');
+            const area = document.getElementById('ga-select-area');
+
+            const groupsExist = await populateGaGroupSelect();
+
+            // If user already signed into a non-default group, show Change, else show Select
+            if (activeGroupId && activeGroupId !== 'default') {
+                if (changeBtn) changeBtn.classList.remove('d-none');
+                if (selectBtn) selectBtn.classList.add('d-none');
+            } else {
+                if (selectBtn) selectBtn.classList.remove('d-none');
+                if (changeBtn) changeBtn.classList.add('d-none');
+            }
+
+            // Disable both if user has no groups
+            if (!groupsExist) {
+                if (changeBtn) changeBtn.disabled = true;
+                if (selectBtn) selectBtn.disabled = true;
+            }
+
+            // Hide the selection area by default when modal opens
+            if (area) area.classList.add('d-none');
+        });
+
+        // Toggle the small select area when clicking Change or Select
+        const changeBtn = document.getElementById('ga-change');
+        const selectBtn = document.getElementById('ga-select');
+        const area = document.getElementById('ga-select-area');
+        const gaApply = document.getElementById('ga-apply');
+
+        if (changeBtn) changeBtn.addEventListener('click', async () => {
+            // show the select area and populate immediately
+            await populateGaGroupSelect();
+            if (area) area.classList.remove('d-none');
+            const sel = document.getElementById('ga-group-select');
+            if (sel) {
+                if (!sel.value) sel.selectedIndex = 0;
+                try { sel.focus(); } catch (e) {}
+            }
+        });
+
+        if (selectBtn) selectBtn.addEventListener('click', async () => {
+            // show the select area and populate immediately
+            await populateGaGroupSelect();
+            if (area) area.classList.remove('d-none');
+            const sel = document.getElementById('ga-group-select');
+            if (sel) {
+                if (!sel.value) sel.selectedIndex = 0;
+                try { sel.focus(); } catch (e) {}
+            }
+        });
+
+        if (gaApply) gaApply.addEventListener('click', async () => {
+            const sel = document.getElementById('ga-group-select');
+            if (!sel) return;
+            const gid = sel.value || '';
+            if (!gid) return;
+            setActiveGroup(gid);
+            // hide modals
+            try { const m = bootstrap.Modal.getInstance(modalEl); if (m) m.hide(); } catch (e) {}
+        });
+    })();
+
+    // Leave/signout are handled per-list-item now (icons on each row). Global 'ga-leave' handler intentionally removed.
 
     // Helper to generate a short random code
     const generateShortCode = (len = 6) => {
@@ -121,8 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (groupJoinSubmit) {
         groupJoinSubmit.addEventListener('click', async () => {
-            // First, if the user selected a group they belong to, use that
-            const selectedGroup = groupJoinSelect ? (groupJoinSelect.value || '') : '';
+            // First, if the user selected a group they belong to (from the button list), use that
+            const selectedGroup = (groupJoinSelectedInput && groupJoinSelectedInput.value) ? groupJoinSelectedInput.value : '';
             if (selectedGroup) {
                 setActiveGroup(selectedGroup);
                 if (groupModal) groupModal.hide();
@@ -162,124 +356,209 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Localization ---
-    // Populate the join modal's group select with groups the current user belongs to
+    // Populate the join modal's group list with groups the current user belongs to
     async function populateUserGroupSelect() {
-        if (!groupJoinSelect) return;
-        // Clear existing options
-        groupJoinSelect.innerHTML = '';
+        // Prefer the new `#group-list` element if it exists, otherwise use `#group-join-list`
+        const targetList = document.getElementById('group-list') || groupJoinList;
+        if (!targetList) return;
+        // Clear existing list
+        targetList.innerHTML = '';
 
-        // Add placeholder
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = translations.select_group_placeholder || '-- Select a group --';
-        placeholder.disabled = true;
-        placeholder.selected = true;
-        groupJoinSelect.appendChild(placeholder);
+        // Clear the selected id
+        if (groupJoinSelectedInput) groupJoinSelectedInput.value = '';
 
         if (!currentUser) {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = translations.sign_in_to_see_groups || 'Sign in to see your groups';
-            groupJoinSelect.appendChild(opt);
+            const item = document.createElement('div');
+            item.className = 'list-group-item disabled';
+            item.textContent = translations.sign_in_to_see_groups || 'Sign in to see your groups';
+            targetList.appendChild(item);
             return;
         }
 
+        let groups = [];
         try {
-            // Try collectionGroup query first (fast) — may fail if rules or indexes disallow it
-            const q = db.collectionGroup('members').where(firebase.firestore.FieldPath.documentId(), '==', currentUser);
-            const snap = await q.get();
-            if (!snap.empty) {
-                // Gather unique parent group refs
-                const groupRefs = [];
-                const seen = new Set();
-                for (const mdoc of snap.docs) {
-                    const membersColl = mdoc.ref.parent; // members collection
-                    const groupRef = membersColl.parent; // groups/{groupId}
-                    if (groupRef && !seen.has(groupRef.path)) {
-                        seen.add(groupRef.path);
-                        groupRefs.push(groupRef);
+            // Try collectionGroup query first (fast)
+            // When using FieldPath.documentId() against a collectionGroup the
+            // provided value must be a full document path (e.g. 'groups/<gid>/members/<mid>').
+            // Our member docs are keyed by username and won't be a full path, which
+            // causes Firestore to throw. Only attempt the fast path when currentUser
+            // appears to be a full path (contains a '/'). Otherwise skip to fallback.
+            if (currentUser && currentUser.includes('/')) {
+                const q = db.collectionGroup('members').where(firebase.firestore.FieldPath.documentId(), '==', currentUser);
+                const snap = await q.get();
+                if (!snap.empty) {
+                    const groupRefs = [];
+                    const seen = new Set();
+                    for (const mdoc of snap.docs) {
+                        const membersColl = mdoc.ref.parent;
+                        const groupRef = membersColl.parent;
+                        if (groupRef && !seen.has(groupRef.path)) {
+                            seen.add(groupRef.path);
+                            groupRefs.push(groupRef);
+                        }
                     }
+                    const groupDocs = await Promise.all(groupRefs.map(r => r.get().catch(() => null)));
+                    groupDocs.forEach(gdoc => {
+                        if (!gdoc || !gdoc.exists) return;
+                        const data = gdoc.data() || {};
+                        groups.push({ id: gdoc.id, name: data.name || gdoc.id });
+                    });
                 }
-
-                // Fetch group docs in parallel
-                const groupDocs = await Promise.all(groupRefs.map(r => r.get().catch(() => null)));
-                const options = [];
-                groupDocs.forEach(gdoc => {
-                    if (!gdoc || !gdoc.exists) return;
-                    const data = gdoc.data() || {};
-                    options.push({ id: gdoc.id, name: data.name || gdoc.id });
-                });
-
-                // Sort by name
-                options.sort((a, b) => a.name.localeCompare(b.name));
-
-                options.forEach(o => {
-                    const opt = document.createElement('option');
-                    opt.value = o.id;
-                    opt.textContent = o.name;
-                    groupJoinSelect.appendChild(opt);
-                });
-                return;
             }
-
-            // If collectionGroup returned empty, fall through to show no groups
-            const optEmpty = document.createElement('option');
-            optEmpty.value = '';
-            optEmpty.textContent = translations.no_groups_found || 'No groups found';
-            groupJoinSelect.appendChild(optEmpty);
-            return;
         } catch (err) {
             console.warn('collectionGroup approach failed, falling back to scanning groups:', err);
         }
 
-        // Fallback: iterate top-level groups and check for a members/{currentUser} doc
-        try {
-            const groupsSnap = await db.collection('groups').get();
-            if (groupsSnap.empty) {
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = translations.no_groups_found || 'No groups found';
-                groupJoinSelect.appendChild(opt);
-                return;
-            }
-
-            const options = [];
-            // Check each group's members subdoc for the current user
-            await Promise.all(groupsSnap.docs.map(async (gdoc) => {
-                try {
-                    const memRef = db.collection('groups').doc(gdoc.id).collection('members').doc(currentUser);
-                    const memSnap = await memRef.get();
-                    if (memSnap.exists) {
-                        const data = gdoc.data() || {};
-                        options.push({ id: gdoc.id, name: data.name || gdoc.id });
-                    }
-                } catch (e) {
-                    // ignore per-group errors
+        if (groups.length === 0) {
+            // Fallback: iterate top-level groups and check membership
+            try {
+                const groupsSnap = await db.collection('groups').get();
+                if (!groupsSnap.empty) {
+                    await Promise.all(groupsSnap.docs.map(async (gdoc) => {
+                        try {
+                            const memRef = db.collection('groups').doc(gdoc.id).collection('members').doc(currentUser);
+                            const memSnap = await memRef.get();
+                            if (memSnap.exists) {
+                                const data = gdoc.data() || {};
+                                groups.push({ id: gdoc.id, name: data.name || gdoc.id });
+                            }
+                        } catch (e) {
+                            // ignore per-group errors
+                        }
+                    }));
                 }
-            }));
+            } catch (err) {
+                console.error('populateUserGroupSelect error (fallback):', err);
+            }
+        }
 
-            if (options.length === 0) {
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = translations.no_groups_found || 'No groups found';
-                groupJoinSelect.appendChild(opt);
-                return;
+        if (!groups || groups.length === 0) {
+            const noneItem = document.createElement('div');
+            noneItem.className = 'list-group-item disabled';
+            noneItem.textContent = translations.no_groups_found || 'No groups found';
+            targetList.appendChild(noneItem);
+            return;
+        }
+
+        groups.sort((a, b) => a.name.localeCompare(b.name));
+        groups.forEach(g => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+            item.dataset.groupId = g.id;
+
+            const left = document.createElement('div');
+            left.className = 'd-flex align-items-center gap-2 flex-grow-1';
+
+            const title = document.createElement('div');
+            title.className = 'group-name flex-grow-1';
+            title.textContent = g.name || g.id;
+
+            if (activeGroupId === g.id) {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-primary ms-2';
+                badge.textContent = translations.group_actions_active || 'Active';
+                title.appendChild(badge);
+                // visually mark the row as active so users can see the current group
+                item.classList.add('active');
+                if (groupJoinSelectedInput) groupJoinSelectedInput.value = g.id;
             }
 
-            options.sort((a, b) => a.name.localeCompare(b.name));
-            options.forEach(o => {
-                const opt = document.createElement('option');
-                opt.value = o.id;
-                opt.textContent = o.name;
-                groupJoinSelect.appendChild(opt);
+            left.appendChild(title);
+
+            const actions = document.createElement('div');
+            actions.className = 'd-flex gap-2 align-items-center';
+
+            // Only show the sign-out button on the currently active group row
+            let signoutBtn = null;
+            if (activeGroupId === g.id) {
+                signoutBtn = document.createElement('button');
+                signoutBtn.type = 'button';
+                // add a specific class so we can style it differently when the row is active
+                signoutBtn.className = 'btn btn-sm btn-outline-secondary group-signout-btn';
+                signoutBtn.title = translations.group_actions_signout || 'Sign out';
+                signoutBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M6 3a1 1 0 0 0-1 1v3h1V4h7v8H6v-3H5v3a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H6z"/><path fill-rule="evenodd" d="M11.146 8.354a.5.5 0 0 0 0-.708L9.793 6.293a.5.5 0 1 0-.707.707L9.793 8l-1.307 1.293a.5.5 0 0 0 .707.707l1.353-1.353z"/></svg>';
+
+                signoutBtn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    // Clear active group (do not remove membership)
+                    try { localStorage.removeItem('selected_group_id'); } catch (e) {}
+                    setActiveGroup('default');
+                    try { const m = bootstrap.Modal.getInstance(document.getElementById('group-modal')); if (m) m.hide(); } catch (e) {}
+                });
+            }
+
+            const leaveBtn = document.createElement('button');
+            leaveBtn.type = 'button';
+            leaveBtn.className = 'btn btn-sm btn-outline-danger';
+            leaveBtn.title = translations.group_actions_leave || 'Leave group';
+            leaveBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 5h4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5v-7z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1 0-2h3.11a1 1 0 0 1 .9-.6h2.98c.36 0 .69.21.86.54l.72 1.45H13.5a1 1 0 0 1 1 1z"/></svg>';
+
+            leaveBtn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const confirmModalEl = document.getElementById('confirm-leave-modal');
+                const confirmModal = confirmModalEl ? new bootstrap.Modal(confirmModalEl) : null;
+
+                // Hide the group modal so the confirm dialog appears on top
+                try { const gm = bootstrap.Modal.getInstance(document.getElementById('group-modal')); if (gm) gm.hide(); } catch (e) {}
+
+                if (!confirmModal) {
+                    const confirmMsg = translations.group_actions_confirm_leave || 'Are you sure you want to leave this group?';
+                    if (!confirm(confirmMsg)) {
+                        // user cancelled browser confirm -> re-show group modal
+                        try { if (groupModal) groupModal.show(); } catch (e) {}
+                        return;
+                    }
+                    leaveGroupById(g.id);
+                    return;
+                }
+
+                let leaveConfirmed = false;
+                const confirmBtn = document.getElementById('confirm-leave-yes');
+                if (confirmBtn) {
+                    // replace to ensure we don't attach duplicate handlers
+                    const newBtn = confirmBtn.cloneNode(true);
+                    confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+                    newBtn.addEventListener('click', async () => {
+                        leaveConfirmed = true;
+                        await leaveGroupById(g.id);
+                        try { confirmModal.hide(); } catch (e) {}
+                    });
+                }
+
+                // If the confirm modal is hidden without confirming (cancel), re-show the group modal
+                if (confirmModalEl) {
+                    const onHidden = () => {
+                        if (!leaveConfirmed) {
+                            try { if (groupModal) groupModal.show(); } catch (e) {}
+                        }
+                        confirmModalEl.removeEventListener('hidden.bs.modal', onHidden);
+                    };
+                    confirmModalEl.addEventListener('hidden.bs.modal', onHidden);
+                }
+
+                confirmModal.show();
             });
-        } catch (err) {
-            console.error('populateUserGroupSelect error (fallback):', err);
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = translations.error_loading_groups || 'Error loading groups';
-            groupJoinSelect.appendChild(opt);
-        }
+
+            // Append signout button only when it was created for the active group
+            if (signoutBtn) actions.appendChild(signoutBtn);
+            actions.appendChild(leaveBtn);
+
+            item.appendChild(left);
+            item.appendChild(actions);
+
+            // clicking the row now activates the group immediately (single-click)
+            item.addEventListener('click', async () => {
+                try {
+                    setActiveGroup(g.id);
+                    // hide the modal if present
+                    try { if (groupModal) groupModal.hide(); } catch (e) {}
+                } catch (err) {
+                    console.error('Error activating group on click:', err);
+                }
+            });
+
+            targetList.appendChild(item);
+        });
     }
     let translations = {};
     // Debounce utility for input handlers to reduce re-renders
@@ -593,9 +872,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updateJoinButtonVisibility();
     }
 
-    // Active Group Actions modal wiring
-    const groupActionsModalEl = document.getElementById('group-actions-modal');
-    const groupActionsModal = groupActionsModalEl ? new bootstrap.Modal(groupActionsModalEl) : null;
+    // Use the main group modal instance
+    const groupModalInstance = groupModal; // created earlier from #group-modal
 
     // Click outside to close user menu (single listener)
     document.addEventListener('click', (ev) => {
@@ -609,13 +887,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const activeGroupDisplay = document.getElementById('active-group-display');
     const gaChangeBtn = document.getElementById('ga-change');
-    const gaLeaveBtn = document.getElementById('ga-leave');
 
     if (activeGroupDisplay) {
         activeGroupDisplay.addEventListener('click', () => {
-            const gaCurrent = document.getElementById('ga-current');
-            if (gaCurrent) gaCurrent.textContent = `${translations.group_actions_current || 'Active group:'} ${activeGroupId}`;
-            if (groupActionsModal) groupActionsModal.show();
+            const gaCurrent = document.getElementById('ga-current-id');
+            if (gaCurrent) gaCurrent.textContent = '';
+            // Ensure active group display is up-to-date and show the modal
+            updateActiveGroupDisplay();
+            if (groupModalInstance) groupModalInstance.show();
         });
         activeGroupDisplay.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -628,18 +907,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (gaChangeBtn) {
         gaChangeBtn.addEventListener('click', () => {
             if (groupModal) groupModal.show();
-            if (groupActionsModal) groupActionsModal.hide();
         });
     }
 
-    if (gaLeaveBtn) {
-        gaLeaveBtn.addEventListener('click', () => {
-            // Clear active group and reset to default
-            localStorage.removeItem('selected_group_id');
-            setActiveGroup('default');
-            if (groupActionsModal) groupActionsModal.hide();
-        });
-    }
+    // Per-item sign-out is handled on each row; global sign-out button removed.
 
     // --- Admin: Group Management ---
     function escapeHtml(str) {
@@ -873,6 +1144,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Keep the status hidden when the active group is the default placeholder or not set.
         if (!activeGroupId || activeGroupId === 'default') {
             el.classList.add('d-none');
+            const gaIdEl = document.getElementById('ga-current-id');
+            if (gaIdEl) gaIdEl.textContent = '';
             return;
         }
 
@@ -884,15 +1157,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const groupName = data && data.name ? data.name : activeGroupId;
                 el.classList.remove('d-none');
                 el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(groupName)}</strong>`;
+                const gaIdEl = document.getElementById('ga-current-id');
+                if (gaIdEl) gaIdEl.textContent = groupName;
             } else {
                 el.classList.remove('d-none');
                 el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(activeGroupId)}</strong>`;
+                const gaIdEl = document.getElementById('ga-current-id');
+                if (gaIdEl) gaIdEl.textContent = activeGroupId;
             }
         } catch (err) {
             console.warn('Could not read group info:', err);
             const label = translations.group_label || 'Group:';
             el.classList.remove('d-none');
             el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(activeGroupId)}</strong>`;
+            const gaIdEl = document.getElementById('ga-current-id');
+            if (gaIdEl) gaIdEl.textContent = activeGroupId;
         }
     }
 
@@ -931,6 +1210,35 @@ document.addEventListener('DOMContentLoaded', () => {
         updateActiveGroupVisibility();
         updateJoinButtonVisibility();
         updateUserNav();
+    }
+
+    // Remove membership for a given group id (safe to call from UI handlers)
+    async function leaveGroupById(targetGroupId) {
+        const gid = targetGroupId || activeGroupId;
+        try {
+            if (!currentUser) {
+                alert(translations.not_logged_in || 'Not logged in');
+                return;
+            }
+            await db.collection('groups').doc(gid).collection('members').doc(currentUser).delete();
+        } catch (err) {
+            console.warn('Error removing membership document:', err);
+        }
+
+        try {
+            if (activeGroupId && activeGroupId === gid) setActiveGroup('default');
+        } catch (e) {}
+
+        // Hide the group modal if open
+        try {
+            const modalEl = document.getElementById('group-modal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) modalInstance.hide();
+        } catch (e) {}
+
+        try {
+            alert(translations.group_actions_left || 'You have left the group.');
+        } catch (e) {}
     }
 
     // Load the current user's wishlist (favorites)
@@ -2152,10 +2460,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Modify updateUserDisplay to call fetchAndDisplayUsers when admin logs in
     // --- App Initialization ---
-    updateUserDisplay();
-    // Ensure the saved layout is applied on initial load so large/small/list render correctly
-    applyLayout(currentLayout);
-    handleHashChange(); // Handle initial load based on URL hash
+    // Load translations first, then initialize UI so translated strings are applied
+    const savedLang = localStorage.getItem('bgg_lang') || 'en';
+    (async () => {
+        await loadTranslations(savedLang);
+        updateUserDisplay();
+        // Ensure the saved layout is applied on initial load so large/small/list render correctly
+        applyLayout(currentLayout);
+        handleHashChange(); // Handle initial load based on URL hash
+        // Populate usernames dropdown after translations are loaded
+        try { await fetchUsernames(); } catch (e) {}
+    })();
 
     // Initial fetch for polls when events view might be active or navigated to
     // This is now handled by handleHashChange and showView functions
@@ -2165,13 +2480,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Localization Initialization ---
     const languageSwitcher = document.getElementById('language-switcher');
-    languageSwitcher.addEventListener('change', (e) => {
+    if (languageSwitcher) languageSwitcher.addEventListener('change', (e) => {
         const lang = e.target.value;
         localStorage.setItem('bgg_lang', lang);
         loadTranslations(lang);
     });
-
-    const savedLang = localStorage.getItem('bgg_lang') || 'en';
-    languageSwitcher.value = savedLang;
-    loadTranslations(savedLang); // Load translations after initial setup
 });
