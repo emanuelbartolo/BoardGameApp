@@ -94,11 +94,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const groupJoinCodeInput = getElement('group-join-code');
     const groupModalStatus = getElement('group-modal-status');
     const groupModal = groupModalEl ? new bootstrap.Modal(groupModalEl) : null;
+    const groupJoinSelect = getElement('group-join-select');
 
     if (groupJoinBtn) {
-        groupJoinBtn.addEventListener('click', () => {
+        groupJoinBtn.addEventListener('click', async () => {
             if (groupModalStatus) groupModalStatus.textContent = '';
             if (groupJoinCodeInput) groupJoinCodeInput.value = '';
+            if (groupJoinSelect) {
+                // populate user's groups if logged in
+                await populateUserGroupSelect();
+                groupJoinSelect.value = '';
+            }
             if (groupModal) groupModal.show();
         });
     }
@@ -115,9 +121,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (groupJoinSubmit) {
         groupJoinSubmit.addEventListener('click', async () => {
+            // First, if the user selected a group they belong to, use that
+            const selectedGroup = groupJoinSelect ? (groupJoinSelect.value || '') : '';
+            if (selectedGroup) {
+                setActiveGroup(selectedGroup);
+                if (groupModal) groupModal.hide();
+                return;
+            }
+
             const code = (groupJoinCodeInput && groupJoinCodeInput.value || '').trim();
             if (!code) {
-                if (groupModalStatus) groupModalStatus.textContent = 'Please enter a group code.';
+                if (groupModalStatus) groupModalStatus.textContent = translations.please_enter_group_code_or_select || 'Please enter a group code or select a group.';
                 return;
             }
 
@@ -130,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (direct.exists) doc = direct;
                 }
                 if (!doc) {
-                    if (groupModalStatus) groupModalStatus.textContent = 'Group not found.';
+                    if (groupModalStatus) groupModalStatus.textContent = translations.group_not_found || 'Group not found.';
                     return;
                 }
 
@@ -142,12 +156,131 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (groupModal) groupModal.hide();
             } catch (err) {
                 console.error('Group join error:', err);
-                if (groupModalStatus) groupModalStatus.textContent = 'Could not join group. See console.';
+                if (groupModalStatus) groupModalStatus.textContent = translations.could_not_join_group || 'Could not join group. See console.';
             }
         });
     }
 
     // --- Localization ---
+    // Populate the join modal's group select with groups the current user belongs to
+    async function populateUserGroupSelect() {
+        if (!groupJoinSelect) return;
+        // Clear existing options
+        groupJoinSelect.innerHTML = '';
+
+        // Add placeholder
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = translations.select_group_placeholder || '-- Select a group --';
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        groupJoinSelect.appendChild(placeholder);
+
+        if (!currentUser) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = translations.sign_in_to_see_groups || 'Sign in to see your groups';
+            groupJoinSelect.appendChild(opt);
+            return;
+        }
+
+        try {
+            // Try collectionGroup query first (fast) — may fail if rules or indexes disallow it
+            const q = db.collectionGroup('members').where(firebase.firestore.FieldPath.documentId(), '==', currentUser);
+            const snap = await q.get();
+            if (!snap.empty) {
+                // Gather unique parent group refs
+                const groupRefs = [];
+                const seen = new Set();
+                for (const mdoc of snap.docs) {
+                    const membersColl = mdoc.ref.parent; // members collection
+                    const groupRef = membersColl.parent; // groups/{groupId}
+                    if (groupRef && !seen.has(groupRef.path)) {
+                        seen.add(groupRef.path);
+                        groupRefs.push(groupRef);
+                    }
+                }
+
+                // Fetch group docs in parallel
+                const groupDocs = await Promise.all(groupRefs.map(r => r.get().catch(() => null)));
+                const options = [];
+                groupDocs.forEach(gdoc => {
+                    if (!gdoc || !gdoc.exists) return;
+                    const data = gdoc.data() || {};
+                    options.push({ id: gdoc.id, name: data.name || gdoc.id });
+                });
+
+                // Sort by name
+                options.sort((a, b) => a.name.localeCompare(b.name));
+
+                options.forEach(o => {
+                    const opt = document.createElement('option');
+                    opt.value = o.id;
+                    opt.textContent = o.name;
+                    groupJoinSelect.appendChild(opt);
+                });
+                return;
+            }
+
+            // If collectionGroup returned empty, fall through to show no groups
+            const optEmpty = document.createElement('option');
+            optEmpty.value = '';
+            optEmpty.textContent = translations.no_groups_found || 'No groups found';
+            groupJoinSelect.appendChild(optEmpty);
+            return;
+        } catch (err) {
+            console.warn('collectionGroup approach failed, falling back to scanning groups:', err);
+        }
+
+        // Fallback: iterate top-level groups and check for a members/{currentUser} doc
+        try {
+            const groupsSnap = await db.collection('groups').get();
+            if (groupsSnap.empty) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = translations.no_groups_found || 'No groups found';
+                groupJoinSelect.appendChild(opt);
+                return;
+            }
+
+            const options = [];
+            // Check each group's members subdoc for the current user
+            await Promise.all(groupsSnap.docs.map(async (gdoc) => {
+                try {
+                    const memRef = db.collection('groups').doc(gdoc.id).collection('members').doc(currentUser);
+                    const memSnap = await memRef.get();
+                    if (memSnap.exists) {
+                        const data = gdoc.data() || {};
+                        options.push({ id: gdoc.id, name: data.name || gdoc.id });
+                    }
+                } catch (e) {
+                    // ignore per-group errors
+                }
+            }));
+
+            if (options.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = translations.no_groups_found || 'No groups found';
+                groupJoinSelect.appendChild(opt);
+                return;
+            }
+
+            options.sort((a, b) => a.name.localeCompare(b.name));
+            options.forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = o.id;
+                opt.textContent = o.name;
+                groupJoinSelect.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('populateUserGroupSelect error (fallback):', err);
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = translations.error_loading_groups || 'Error loading groups';
+            groupJoinSelect.appendChild(opt);
+        }
+    }
     let translations = {};
     // Debounce utility for input handlers to reduce re-renders
     const debounce = (fn, ms = 250) => {
@@ -225,6 +358,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Special handling for login view: ensure usernames are fetched
         if (viewName === 'login') {
             fetchUsernames();
+            // Hide the top-nav login link while showing the login view to avoid a redundant link/button
+            try {
+                if (navLinks.login && navLinks.login.parentElement) navLinks.login.parentElement.classList.add('d-none');
+            } catch (_) {}
         } else if (viewName === 'shortlist') {
             fetchAndDisplayShortlist();
             fetchNextGameNight();
@@ -353,14 +490,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateUserNav() {
+        const onLoginView = window.location.hash === '#login';
         if (currentUser) {
-            // User is logged in: show app nav, hide login nav
-            navLinks.collection.parentElement.classList.remove('d-none');
-            navLinks.shortlist.parentElement.classList.remove('d-none');
-            navLinks.events.parentElement.classList.remove('d-none');
-            // Show admin nav only to admin (unhide both the li and the anchor)
+            // User is logged in: always show Collection nav
+            if (navLinks.collection && navLinks.collection.parentElement) navLinks.collection.parentElement.classList.remove('d-none');
+
+            // Only show shortlist/events/admin when a non-default active group is set
+            const hasActiveGroup = activeGroupId && activeGroupId !== 'default';
+            if (navLinks.shortlist && navLinks.shortlist.parentElement) {
+                hasActiveGroup ? navLinks.shortlist.parentElement.classList.remove('d-none') : navLinks.shortlist.parentElement.classList.add('d-none');
+            }
+            if (navLinks.events && navLinks.events.parentElement) {
+                hasActiveGroup ? navLinks.events.parentElement.classList.remove('d-none') : navLinks.events.parentElement.classList.add('d-none');
+            }
+
+            // Show admin nav only to admin and only when active group is set
             if (navLinks.admin) {
-                if (currentUser === adminUser) {
+                if (currentUser === adminUser && hasActiveGroup) {
                     if (navLinks.admin.parentElement) navLinks.admin.parentElement.classList.remove('d-none');
                     navLinks.admin.classList.remove('d-none');
                 } else {
@@ -368,15 +514,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     navLinks.admin.classList.add('d-none');
                 }
             }
-            navLinks.login.parentElement.classList.add('d-none');
+
+            // Hide login nav once logged in
+            if (navLinks.login && navLinks.login.parentElement) navLinks.login.parentElement.classList.add('d-none');
         } else {
-            // User is logged out: hide app nav, show login nav
-            navLinks.collection.parentElement.classList.add('d-none');
-            navLinks.shortlist.parentElement.classList.add('d-none');
-            navLinks.events.parentElement.classList.add('d-none');
+            // User is logged out: hide app nav options except the Login nav
+            if (navLinks.collection && navLinks.collection.parentElement) navLinks.collection.parentElement.classList.add('d-none');
+            if (navLinks.shortlist && navLinks.shortlist.parentElement) navLinks.shortlist.parentElement.classList.add('d-none');
+            if (navLinks.events && navLinks.events.parentElement) navLinks.events.parentElement.classList.add('d-none');
             if (navLinks.admin && navLinks.admin.parentElement) navLinks.admin.parentElement.classList.add('d-none');
-            if (navLinks.admin) navLinks.admin.classList.add('d-none');
-            navLinks.login.parentElement.classList.remove('d-none');
+            if (navLinks.login && navLinks.login.parentElement) navLinks.login.parentElement.classList.toggle('d-none', onLoginView);
         }
     }
 
@@ -442,6 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateUserNav(); // Update nav visibility along with user display
         updateActiveGroupDisplay();
+        updateActiveGroupVisibility();
         updateJoinButtonVisibility();
     }
 
@@ -466,7 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeGroupDisplay) {
         activeGroupDisplay.addEventListener('click', () => {
             const gaCurrent = document.getElementById('ga-current');
-            if (gaCurrent) gaCurrent.textContent = `Active group: ${activeGroupId}`;
+            if (gaCurrent) gaCurrent.textContent = `${translations.group_actions_current || 'Active group:'} ${activeGroupId}`;
             if (groupActionsModal) groupActionsModal.show();
         });
         activeGroupDisplay.addEventListener('keydown', (e) => {
@@ -516,10 +664,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const list = document.getElementById('admin-groups-list');
         if (!list) return;
-        list.innerHTML = '<div class="small text-muted">Loading groups...</div>';
+        list.innerHTML = `<div class="small text-muted">${translations.group_loading_groups || 'Loading groups...'}</div>`;
         try {
             const snap = await db.collection('groups').orderBy('createdAt', 'desc').get();
-            if (snap.empty) { list.innerHTML = '<div class="small text-muted">No groups found.</div>'; return; }
+            if (snap.empty) { list.innerHTML = `<div class="small text-muted">${translations.no_groups_found || 'No groups found'}</div>`; return; }
             let html = '';
             snap.forEach(doc => {
                 const g = doc.data() || {};
@@ -556,7 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (err) {
             console.error('Error loading groups:', err);
-            list.innerHTML = '<div class="text-danger small">Could not load groups.</div>';
+            list.innerHTML = `<div class="text-danger small">${translations.group_load_groups_error || 'Could not load groups.'}</div>`;
         }
     }
 
@@ -564,11 +712,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load and render members list for a group
     async function loadGroupMembers(groupId) {
         if (!groupId || !groupEditMembers) return;
-        groupEditMembers.innerHTML = '<div class="small text-muted">Loading members...</div>';
+        groupEditMembers.innerHTML = `<div class="small text-muted">${translations.group_loading_members || 'Loading members...'}</div>`;
         try {
             const membersSnap = await db.collection('groups').doc(groupId).collection('members').orderBy('joinedAt','asc').get();
             if (membersSnap.empty) {
-                groupEditMembers.innerHTML = '<div class="small text-muted">No members.</div>';
+                groupEditMembers.innerHTML = `<div class="small text-muted">${translations.group_no_members || 'No members.'}</div>`;
                 return;
             }
             let membersHtml = '';
@@ -598,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (err) {
             console.error('Could not load group members:', err);
-            groupEditMembers.innerHTML = '<div class="text-danger small">Could not load members.</div>';
+            groupEditMembers.innerHTML = `<div class="text-danger small">${translations.group_load_members_error || 'Could not load members.'}</div>`;
         }
     }
 
@@ -722,29 +870,48 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updateActiveGroupDisplay() {
         const el = document.getElementById('active-group-display');
         if (!el) return;
+        // Keep the status hidden when the active group is the default placeholder or not set.
+        if (!activeGroupId || activeGroupId === 'default') {
+            el.classList.add('d-none');
+            return;
+        }
+
         try {
             const doc = await groupDocRef.get();
+            const label = translations.group_label || 'Group:';
             if (doc.exists) {
                 const data = doc.data();
-                const groupName = data && data.name ? data.name : (activeGroupId === 'default' ? 'Default Group' : activeGroupId);
-                el.innerHTML = `Group: <strong>${escapeHtml(groupName)}</strong>`;
+                const groupName = data && data.name ? data.name : activeGroupId;
+                el.classList.remove('d-none');
+                el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(groupName)}</strong>`;
             } else {
-                const groupName = activeGroupId === 'default' ? 'Default Group' : activeGroupId;
-                el.innerHTML = `Group: <strong>${escapeHtml(groupName)}</strong>`;
+                el.classList.remove('d-none');
+                el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(activeGroupId)}</strong>`;
             }
         } catch (err) {
             console.warn('Could not read group info:', err);
-            el.innerHTML = `Group: <strong>${escapeHtml(activeGroupId)}</strong>`;
+            const label = translations.group_label || 'Group:';
+            el.classList.remove('d-none');
+            el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(activeGroupId)}</strong>`;
         }
     }
 
     // Show/hide the Join Group button depending on whether an active group is set
     function updateJoinButtonVisibility() {
         if (!groupJoinBtn) return;
+        // Only show Join button when a user is logged in and the active group is not set (or is default)
+        const shouldShow = currentUser && (!activeGroupId || activeGroupId === 'default');
+        groupJoinBtn.classList.toggle('d-none', !shouldShow);
+    }
+
+    // Ensure active group display is hidden when the active group is the default placeholder
+    function updateActiveGroupVisibility() {
+        const el = document.getElementById('active-group-display');
+        if (!el) return;
         if (!activeGroupId || activeGroupId === 'default') {
-            groupJoinBtn.classList.remove('d-none');
+            el.classList.add('d-none');
         } else {
-            groupJoinBtn.classList.add('d-none');
+            el.classList.remove('d-none');
         }
     }
 
@@ -761,7 +928,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (views.shortlist && !views.shortlist.classList.contains('d-none')) fetchAndDisplayShortlist();
         if (views.events && !views.events.classList.contains('d-none')) fetchAndDisplayEvents();
         updateActiveGroupDisplay();
+        updateActiveGroupVisibility();
         updateJoinButtonVisibility();
+        updateUserNav();
     }
 
     // Load the current user's wishlist (favorites)
