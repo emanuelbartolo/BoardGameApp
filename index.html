@@ -14,12 +14,37 @@
     <div class="top-strip py-1">
         <div class="container d-flex justify-content-between align-items-center">
             <div class="me-1">
-                <select id="language-switcher" class="form-select form-select-sm">
-                    <option value="en">English</option>
-                    <option value="de">Deutsch</option>
+                <div class="d-flex align-items-center">
+                    <select id="language-switcher" class="form-select form-select-sm me-2">
+                    <option value="en">EN</option>
+                    <option value="de">DE</option>
                 </select>
+                    <button id="group-join-btn" class="btn btn-sm btn-outline-primary d-none" type="button">Join Group</button>
+                </div>
             </div>
-            <div id="user-display" class="d-flex align-items-center"></div>
+                <div class="d-flex align-items-center">
+                    <div id="active-group-display" class="me-3 small text-muted" role="button" tabindex="0">Default Group</div>
+                    <div id="user-display" class="d-flex align-items-center"></div>
+                </div>
+        </div>
+    </div>
+
+    <!-- Active Group Actions Modal -->
+    <div class="modal fade" id="group-actions-modal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Group</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="ga-current" class="mb-2 small text-muted">Active group:</p>
+                    <div class="d-grid gap-2">
+                        <button id="ga-change" class="btn btn-outline-primary">Change Active Group</button>
+                        <button id="ga-leave" class="btn btn-outline-danger">Leave Group</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -48,6 +73,31 @@
                 </ul>
             </div>
         </header>
+
+    <!-- Group Join/Create Modal -->
+    <div class="modal fade" id="group-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Join or Create Group</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">Enter an existing group code to join, or create a new group by providing a friendly name and an (optional) short join code.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Enter Group Code</label>
+                        <input type="text" id="group-join-code" class="form-control" placeholder="e.g., AB12CD">
+                        <div class="form-text">Enter a group join code to switch to that group.</div>
+                    </div>
+                    <div id="group-modal-status" class="text-danger small"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="group-join-submit" class="btn btn-primary">Join / Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
         <main>
             <!-- Login View -->
@@ -146,6 +196,48 @@
                 </div>
             </section>
 
+            <!-- Group Edit View (Admin) -->
+            <section id="group-edit-view" class="d-none">
+                <div class="card p-3 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3>Edit Group</h3>
+                        <button id="group-edit-cancel" class="btn btn-sm btn-outline-secondary">Back to Admin</button>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="group-edit-name" class="form-label">Group Name</label>
+                        <input type="text" id="group-edit-name" class="form-control" placeholder="Friendly name for the group">
+                    </div>
+                    <div class="mb-3">
+                        <label for="group-edit-code" class="form-label">Join Code (optional)</label>
+                        <input type="text" id="group-edit-code" class="form-control" placeholder="e.g., AB12CD">
+                    </div>
+                    <div class="mb-3">
+                        <label for="group-edit-desc" class="form-label">Description (optional)</label>
+                        <textarea id="group-edit-desc" class="form-control" rows="3" placeholder="Description shown to members"></textarea>
+                    </div>
+
+                                    <div class="mb-3">
+                                        <h5 class="mb-2">Members</h5>
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="group-edit-add-username" class="form-control" placeholder="Enter username to add">
+                                            <button id="group-edit-add-btn" class="btn btn-outline-primary">Add</button>
+                                        </div>
+                                        <div id="group-edit-members" class="list-group mb-3">
+                                            <div class="small text-muted">Loading members...</div>
+                                        </div>
+                                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <button id="group-edit-save" class="btn btn-primary">Save</button>
+                            <button id="group-edit-delete" class="btn btn-danger ms-2">Delete</button>
+                        </div>
+                        <div class="text-muted small align-self-center">Only visible to admin</div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Shortlist View -->
             <section id="shortlist-view" class="d-none">
                 <div class="d-flex align-items-center justify-content-between mb-2">
@@ -189,6 +281,24 @@
                     <h4 data-i18n-key="user_management_heading">User Management</h4>
                     <p data-i18n-key="user_management_description">Manage registered users. Deleting a user will also remove their associated data (favorites, poll votes).</p>
                     <div id="user-list-container" class="list-group"></div>
+                </div>
+
+                <!-- Group Management (Admin-only) -->
+                <div class="card bg-light p-3 mb-4" id="group-management">
+                    <h4>Group Management</h4>
+                    <p class="small text-muted">Create, edit or delete groups. Only visible to admin.</p>
+                    <div class="row g-2 align-items-end mb-3">
+                        <div class="col-md-6">
+                            <input type="text" id="admin-group-name" class="form-control" placeholder="Group name">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" id="admin-group-code" class="form-control" placeholder="Join code (optional)">
+                        </div>
+                        <div class="col-md-2">
+                            <button id="admin-create-group" class="btn btn-primary w-100">Create</button>
+                        </div>
+                    </div>
+                    <div id="admin-groups-list" class="list-group"></div>
                 </div>
             </section>
 
