@@ -239,6 +239,110 @@ section {
 }
 .next-game-calendar .ngn-weekday {
     font-size: 0.8rem;
+
+/* Keep nav tabs on a single line; allow horizontal scrolling instead of wrapping */
+/* Stronger, more specific nav compression rules to avoid wrapping */
+.container nav .nav.nav-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.container nav .nav.nav-tabs .nav-item {
+    flex: 0 0 auto !important; /* Prevent items from stretching/wrapping */
+    white-space: nowrap !important;
+}
+.container nav .nav.nav-tabs .nav-link {
+    padding: 0.28rem 0.46rem !important; /* compact padding */
+    font-size: 0.92rem !important; /* slightly smaller to fit */
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    max-width: clamp(70px, 18vw, 200px) !important;
+}
+
+/* Very small screens: compress further */
+@media (max-width: 520px) {
+    .container nav .nav.nav-tabs .nav-link {
+        padding: 0.18rem 0.32rem !important;
+        font-size: 0.82rem !important;
+        max-width: clamp(50px, 28vw, 130px) !important;
+    }
+}
+
+/* Extremely compact override to ensure nav tabs remain small and avoid wrapping.
+   This rule is intentionally specific and uses !important so it wins over
+   other theme or browser styles. If you still see large tabs, do a hard-refresh. */
+.container nav .nav.nav-tabs .nav-link {
+    padding: 0.08rem 0.18rem !important;
+    font-size: 0.78rem !important;
+    max-width: clamp(44px, 16vw, 160px) !important;
+    min-width: 40px !important;
+}
+@media (max-width: 520px) {
+    .container nav .nav.nav-tabs .nav-link {
+        padding: 0.08rem 0.14rem !important;
+        font-size: 0.74rem !important;
+        max-width: clamp(40px, 28vw, 110px) !important;
+    }
+}
+
+/* Icon/text swap: hide long text and show icon-only at narrow widths */
+.container nav .nav.nav-tabs .nav-icon { display: none; }
+.container nav .nav.nav-tabs .nav-text { display: inline-block; }
+
+@media (max-width: 520px) {
+    .container nav .nav.nav-tabs .nav-icon { display: inline-block; margin-right: 0.25rem; }
+    .container nav .nav.nav-tabs .nav-text { display: none !important; }
+    .container nav .nav.nav-tabs .nav-link { padding-left: 0.35rem !important; padding-right: 0.35rem !important; }
+}
+@media (max-width: 520px) {
+    .nav-tabs .nav-link {
+        padding: 0.25rem 0.45rem;
+        font-size: 0.95rem;
+    }
+}
+
+/* Compress tab labels responsively and show ellipsis when space is tight */
+.nav-tabs {
+    gap: 0.25rem;
+}
+.nav-tabs .nav-link {
+    display: inline-flex;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Allow the tab to scale relative to viewport but keep reasonable max */
+    max-width: clamp(80px, 18vw, 220px);
+}
+
+/* Larger screens: give tabs a bit more room */
+@media (min-width: 900px) {
+    .nav-tabs .nav-link {
+        max-width: 240px;
+        padding: 0.45rem 0.75rem;
+    }
+}
+
+/* Very small screens: allow slightly wider proportional space and smaller font */
+@media (max-width: 520px) {
+    .nav-tabs .nav-link {
+        max-width: clamp(60px, 30vw, 140px);
+        font-size: 0.9rem;
+        padding: 0.2rem 0.35rem;
+    }
+}
+.nav-tabs::-webkit-scrollbar {
+    height: 6px;
+}
+.nav-tabs::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.12);
+    border-radius: 6px;
+}
     color: #6c757d;
 }
 .next-game-calendar .ngn-day {
