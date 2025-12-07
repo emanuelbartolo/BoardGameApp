@@ -1,6 +1,7 @@
 /* Add your custom styles here */
 body {
-    padding-top: 1rem;
+    /* Body padding-top is managed at runtime to match the header height. */
+    padding-top: 0;
 }
 section {
     margin-bottom: 2rem;
@@ -433,6 +434,117 @@ section {
     0% { box-shadow: 0 0 0 0 rgba(13,110,253,0.18); }
     30% { box-shadow: 0 8px 24px rgba(13,110,253,0.12); }
     100% { box-shadow: 0 0 0 0 rgba(13,110,253,0); }
+}
+
+/* Header (top strip + banner) fixed and shrinkable */
+.site-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    background: #ffffff;
+    transition: all 240ms ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+.site-header .top-strip {
+    transition: padding 240ms ease, height 240ms ease;
+}
+.site-header .app-banner {
+    transition: padding 240ms ease, transform 240ms ease;
+}
+.site-header.shrunk {
+    --header-height: 56px; /* smaller header when scrolled */
+}
+.site-header.shrunk .top-strip {
+    padding-top: 0.1rem !important;
+    padding-bottom: 0.1rem !important;
+}
+.site-header.shrunk .app-banner {
+    padding-top: 0.15rem !important;
+    padding-bottom: 0.15rem !important;
+}
+
+/* Hide the full app title only when the header is shrunk */
+.site-header.shrunk .app-title {
+    display: none !important;
+}
+
+/* Active group display: show 'Group: <name>' by default. Allow wider names,
+   and reduce the language switcher so the group button can expand. */
+#active-group-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 1rem;
+    border-radius: 0.38rem;
+    background: rgba(13,110,253,0.06);
+    color: #0d6efd;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 480px; /* allow longer names */
+    min-width: 96px;
+    box-sizing: border-box;
+}
+#active-group-display strong { font-weight: 600; }
+
+/* Hide the 'Group:' label when header is shrunk */
+.site-header.shrunk #active-group-display span[data-i18n-key="group_label"] {
+    display: none !important;
+}
+
+/* Also hide the label on narrow viewports */
+@media (max-width: 520px) {
+    #active-group-display span[data-i18n-key="group_label"] { display: none !important; }
+}
+
+/* Reduce the language switcher (translation) control to free horizontal space */
+#language-switcher {
+    width: 3.2rem !important; /* show 'EN' nicely */
+    min-width: 3.2rem;
+    padding: 0.12rem 0.35rem !important;
+    font-size: 0.82rem !important;
+    height: auto !important;
+}
+
+/* On very narrow screens, keep the select usable but compact */
+@media (max-width: 420px) {
+    #language-switcher { width: 2.8rem !important; font-size: 0.78rem !important; }
+}
+
+/* Layout adjustments so the group button and user name share available space.
+   Left column (language + group button) grows, user-display stays auto-sized so
+   username is always fully visible. The group button will shrink and ellipsize
+   if space is tight. */
+.top-strip .container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.top-strip .container > .me-1 {
+    flex: 1 1 auto;
+    min-width: 0; /* allow children to shrink */
+}
+#user-display {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+}
+
+/* Make the active group button take remaining space inside the left area */
+#active-group-display {
+    flex: 1 1 auto;
+    min-width: 0; /* allow ellipsis */
+}
+
+/* Ensure user-toggle inside user-display shows full name (no truncation) */
+#user-display #user-toggle {
+    white-space: nowrap;
+    overflow: visible;
 }
 
 

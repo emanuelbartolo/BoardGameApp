@@ -696,6 +696,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Header shrink behavior: reduce header height when scrolling down
+    function updateHeaderShrink() {
+        try {
+            const header = document.querySelector('.site-header');
+            if (!header) return;
+            if (window.scrollY > 80) {
+                header.classList.add('shrunk');
+            } else {
+                header.classList.remove('shrunk');
+            }
+        } catch (err) {
+            console.error('Error in updateHeaderShrink:', err);
+        }
+    }
+
+    // Throttle scroll handler lightly
+    let _hsT = null;
+    window.addEventListener('scroll', () => {
+        if (_hsT) return;
+        _hsT = setTimeout(() => { updateHeaderShrink(); _hsT = null; }, 100);
+    }, { passive: true });
+    // Run at load to set initial state
+    window.addEventListener('load', updateHeaderShrink);
+    window.addEventListener('resize', updateHeaderShrink);
+
+    // Measure the header and set body padding so content isn't hidden under it.
+    function updateHeaderSizing() {
+        try {
+            const header = document.querySelector('.site-header');
+            if (!header) return;
+            // Use the header's rendered height (including margins if any)
+            const rect = header.getBoundingClientRect();
+            const totalHeight = Math.ceil(rect.height);
+            document.body.style.paddingTop = totalHeight + 'px';
+        } catch (err) {
+            console.error('Error in updateHeaderSizing:', err);
+        }
+    }
+
+    // Keep sizing in sync: call sizing when we toggle shrink, on load, and on resize
+    const _orig_updateHeaderShrink = updateHeaderShrink;
+    function _wrap_updateHeaderShrink() {
+        _orig_updateHeaderShrink();
+        // sizing after class changes take effect
+        setTimeout(updateHeaderSizing, 60);
+    }
+    // replace listeners to use wrapped version
+    window.removeEventListener('scroll', () => {});
+    window.addEventListener('scroll', () => {
+        if (_hsT) return;
+        _hsT = setTimeout(() => { _wrap_updateHeaderShrink(); _hsT = null; }, 100);
+    }, { passive: true });
+
+    window.addEventListener('load', () => { _wrap_updateHeaderShrink(); updateHeaderSizing(); });
+    window.addEventListener('resize', () => { _wrap_updateHeaderShrink(); updateHeaderSizing(); });
+
     // Fetch next upcoming event and render a small calendar card
     async function fetchNextGameNight() {
         const container = document.getElementById('next-game-night-container');
@@ -1195,6 +1251,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = doc.data();
                 const groupName = data && data.name ? data.name : activeGroupId;
                 el.classList.remove('d-none');
+                // Display the localised label and the group name. CSS will hide
+                // the label on small screens or when the header is shrunk.
                 el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(groupName)}</strong>`;
                 const gaIdEl = document.getElementById('ga-current-id');
                 if (gaIdEl) gaIdEl.textContent = groupName;
