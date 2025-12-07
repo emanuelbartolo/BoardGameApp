@@ -7,7 +7,7 @@
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=2.5">
+    <link rel="stylesheet" href="css/style.css?v=2.6">
 </head>
 <body class="d-flex flex-column vh-100 overflow-hidden">
         <!-- Top strip: login info and language on the very top (moved inside scroll container) -->
@@ -58,6 +58,96 @@
         </div>
     </div>
     </header>
+
+    <!-- Sticky control row moved here so icons sit under the app title -->
+    <div id="collection-controls-fixed">
+        <div class="container-fluid">
+            <!-- Compact control row: icons only. Tapping an icon expands the related controls below. -->
+            <div id="collection-controls-compact" class="d-flex align-items-center gap-2 mb-2">
+            <div class="d-flex align-items-center me-2" style="min-width:0;flex:1 1 auto;">
+                <button id="search-toggle" class="btn btn-outline-secondary me-1" aria-expanded="false" aria-controls="search-collapse" title="Search">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16"><path d="M11 6a5 5 0 1 1-10 0 5 5 0 0 1 10 0z"/><path d="M12.9 11.1l3 3-1.4 1.4-3-3A7 7 0 1 1 12.9 11.1z"/></svg>
+                </button>
+                <button id="sort-toggle" class="btn btn-outline-secondary me-1" aria-expanded="false" aria-controls="sort-collapse" title="Sort">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-sort-down" viewBox="0 0 16 16"><path d="M3.5 2.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 2a.5.5 0 0 0 .708 0l2-2a.5.5 0 0 0-.708-.708L3.5 11.293V2.5zm3.5 1a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zM7.5 5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm1.5 2a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/></svg>
+                </button>
+                <button id="filter-toggle" class="btn btn-outline-secondary me-2" data-bs-toggle="collapse" data-bs-target="#filter-collapse" aria-expanded="false" aria-controls="filter-collapse" title="Filters">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-funnel" viewBox="0 0 16 16"><path d="M1.5 1.5h13l-5.5 6.5V13l-2 1v-5L1.5 1.5z"/></svg>
+                </button>
+            </div>
+            <!-- Layout icons anchored to the right of the control row -->
+            <div class="btn-group ms-auto me-2" role="group" id="layout-switcher" aria-label="Layout options">
+                <button type="button" class="btn btn-outline-secondary active" data-layout="large-grid" title="Large Grid">
+                    <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <rect x="1" y="1" width="6" height="6" rx="0.5"></rect>
+                        <rect x="9" y="1" width="6" height="6" rx="0.5"></rect>
+                        <rect x="1" y="9" width="6" height="6" rx="0.5"></rect>
+                        <rect x="9" y="9" width="6" height="6" rx="0.5"></rect>
+                    </svg>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-layout="small-grid" title="Small Grid"><svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" class="bi bi-grid-3x3-gap"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1H5v4H1V2.5zm5 0A1.5 1.5 0 0 1 7.5 1H10v4H6V2.5zM11 1h2.5A1.5 1.5 0 0 1 15 2.5V5h-4V1zM1 6h4v4H1V6zm5 0h4v4H6V6zM11 6h4v4h-4V6zM1 11h4v2.5A1.5 1.5 0 0 1 3.5 15H1v-4zm5 0h4v4H6v-4zM11 11h4v2.5a1.5 1.5 0 0 1-1.5 1.5H11v-4z"/></svg></button>
+                <button type="button" class="btn btn-outline-secondary" data-layout="list" title="List"><svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor" class="bi bi-list"><path fill-rule="evenodd" d="M2.5 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5z"/></svg></button>
+            </div>
+            <div id="user-display" class="d-flex align-items-center"></div>
+        </div>
+
+        <!-- Expanded area: search, sort, and filters appear here when toggled -->
+        <div id="collection-controls-expanded">
+            <div id="search-collapse" class="collapse mb-2">
+                <input type="text" id="search-input" class="form-control" data-i18n-key="search_placeholder" placeholder="Search by name...">
+            </div>
+            <div id="sort-collapse" class="collapse mb-2">
+                <div class="input-group">
+                    <span class="input-group-text" data-i18n-key="sort_by_label">Sort by:</span>
+                    <select id="sort-by-select" class="form-select">
+                        <option value="name_asc" data-i18n-key="sort_name_asc">Name (A-Z)</option>
+                        <option value="year_asc" data-i18n-key="sort_year_asc">Year (Oldest First)</option>
+                        <option value="year_desc" data-i18n-key="sort_year_desc">Year (Newest First)</option>
+                        <option value="min_players_asc" data-i18n-key="sort_min_players_asc">Min Players (Low to High)</option>
+                        <option value="max_players_asc" data-i18n-key="sort_max_players_asc">Max Players (Low to High)</option>
+                    </select>
+                </div>
+            </div>
+            <!-- existing filter-collapse is used here -->
+            <div class="collapse" id="filter-collapse">
+                <div class="card card-body mb-3">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-6 col-lg-3">
+                            <div class="input-group">
+                                <span class="input-group-text" data-i18n-key="filter_min_players_label">Min Players:</span>
+                                <input type="number" id="min-players-filter" class="form-control" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <div class="input-group">
+                                <span class="input-group-text" data-i18n-key="filter_max_players_label">Max Players:</span>
+                                <input type="number" id="max-players-filter" class="form-control" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <div class="input-group">
+                                <span class="input-group-text" data-i18n-key="filter_max_playtime_label">Max Play Time (min):</span>
+                                <input type="number" id="max-playtime-filter" class="form-control" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <div class="input-group">
+                                <span class="input-group-text" data-i18n-key="filter_year_label">Year Published:</span>
+                                <input type="number" id="year-filter" class="form-control" min="1900" max="2100">
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-9 d-flex flex-wrap gap-2 mt-2">
+                            <button id="wishlist-filter-button" class="btn btn-outline-primary btn-sm d-none" data-i18n-key="wishlist_filter_button">My Wishlist</button>
+                        </div>
+                        <div class="col-12 col-lg-3 mt-2 text-lg-end">
+                            <button id="clear-filters-button" class="btn btn-outline-secondary w-100" data-i18n-key="clear_filters_button">Clear Filters</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
 
     <div id="main-scroll-container" class="flex-grow-1 overflow-auto position-relative">
         <div class="container py-3">
@@ -123,94 +213,6 @@
                 <div class="mb-2">
                     <h2 data-i18n-key="collection_heading">Game Collection</h2>
                     <p class="text-muted" data-i18n-key="collection_instruction">Browse the full collection of available games. Click the star to add a game to your personal wishlist.</p>
-                </div>
-
-                <!-- Sticky control row - scrolls with page then sticks to top -->
-                <div id="collection-controls-fixed">
-                    <!-- Compact control row: icons only. Tapping an icon expands the related controls below. -->
-                    <div id="collection-controls-compact" class="d-flex align-items-center gap-2 mb-2">
-                        <div class="d-flex align-items-center me-2" style="min-width:0;flex:1 1 auto;">
-                            <button id="search-toggle" class="btn btn-outline-secondary me-1" aria-expanded="false" aria-controls="search-collapse" title="Search">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16"><path d="M11 6a5 5 0 1 1-10 0 5 5 0 0 1 10 0z"/><path d="M12.9 11.1l3 3-1.4 1.4-3-3A7 7 0 1 1 12.9 11.1z"/></svg>
-                            </button>
-                            <button id="sort-toggle" class="btn btn-outline-secondary me-1" aria-expanded="false" aria-controls="sort-collapse" title="Sort">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-sort-down" viewBox="0 0 16 16"><path d="M3.5 2.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 2a.5.5 0 0 0 .708 0l2-2a.5.5 0 0 0-.708-.708L3.5 11.293V2.5zm3.5 1a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zM7.5 5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm1.5 2a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/></svg>
-                            </button>
-                            <button id="filter-toggle" class="btn btn-outline-secondary me-2" data-bs-toggle="collapse" data-bs-target="#filter-collapse" aria-expanded="false" aria-controls="filter-collapse" title="Filters">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-funnel" viewBox="0 0 16 16"><path d="M1.5 1.5h13l-5.5 6.5V13l-2 1v-5L1.5 1.5z"/></svg>
-                            </button>
-                        </div>
-                        <!-- Layout icons anchored to the right of the control row -->
-                        <div class="btn-group ms-auto me-2" role="group" id="layout-switcher" aria-label="Layout options">
-                            <button type="button" class="btn btn-outline-secondary active" data-layout="large-grid" title="Large Grid">
-                                <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                                    <rect x="1" y="1" width="6" height="6" rx="0.5"></rect>
-                                    <rect x="9" y="1" width="6" height="6" rx="0.5"></rect>
-                                    <rect x="1" y="9" width="6" height="6" rx="0.5"></rect>
-                                    <rect x="9" y="9" width="6" height="6" rx="0.5"></rect>
-                                </svg>
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" data-layout="small-grid" title="Small Grid"><svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" class="bi bi-grid-3x3-gap"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1H5v4H1V2.5zm5 0A1.5 1.5 0 0 1 7.5 1H10v4H6V2.5zM11 1h2.5A1.5 1.5 0 0 1 15 2.5V5h-4V1zM1 6h4v4H1V6zm5 0h4v4H6V6zM11 6h4v4h-4V6zM1 11h4v2.5A1.5 1.5 0 0 1 3.5 15H1v-4zm5 0h4v4H6v-4zM11 11h4v2.5a1.5 1.5 0 0 1-1.5 1.5H11v-4z"/></svg></button>
-                            <button type="button" class="btn btn-outline-secondary" data-layout="list" title="List"><svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor" class="bi bi-list"><path fill-rule="evenodd" d="M2.5 12.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5z"/></svg></button>
-                        </div>
-                        <div id="user-display" class="d-flex align-items-center"></div>
-                    </div>
-
-                    <!-- Expanded area: search, sort, and filters appear here when toggled -->
-                    <div id="collection-controls-expanded">
-                        <div id="search-collapse" class="collapse mb-2">
-                            <input type="text" id="search-input" class="form-control" data-i18n-key="search_placeholder" placeholder="Search by name...">
-                        </div>
-                        <div id="sort-collapse" class="collapse mb-2">
-                            <div class="input-group">
-                                <span class="input-group-text" data-i18n-key="sort_by_label">Sort by:</span>
-                                <select id="sort-by-select" class="form-select">
-                                    <option value="name_asc" data-i18n-key="sort_name_asc">Name (A-Z)</option>
-                                    <option value="year_asc" data-i18n-key="sort_year_asc">Year (Oldest First)</option>
-                                    <option value="year_desc" data-i18n-key="sort_year_desc">Year (Newest First)</option>
-                                    <option value="min_players_asc" data-i18n-key="sort_min_players_asc">Min Players (Low to High)</option>
-                                    <option value="max_players_asc" data-i18n-key="sort_max_players_asc">Max Players (Low to High)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <!-- existing filter-collapse is used here -->
-                        <div class="collapse" id="filter-collapse">
-                            <div class="card card-body mb-3">
-                                <div class="row g-2 align-items-end">
-                                    <div class="col-md-6 col-lg-3">
-                                        <div class="input-group">
-                                            <span class="input-group-text" data-i18n-key="filter_min_players_label">Min Players:</span>
-                                            <input type="number" id="min-players-filter" class="form-control" min="0">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6 col-lg-3">
-                                        <div class="input-group">
-                                            <span class="input-group-text" data-i18n-key="filter_max_players_label">Max Players:</span>
-                                            <input type="number" id="max-players-filter" class="form-control" min="0">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6 col-lg-3">
-                                        <div class="input-group">
-                                            <span class="input-group-text" data-i18n-key="filter_max_playtime_label">Max Play Time (min):</span>
-                                            <input type="number" id="max-playtime-filter" class="form-control" min="0">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6 col-lg-3">
-                                        <div class="input-group">
-                                            <span class="input-group-text" data-i18n-key="filter_year_label">Year Published:</span>
-                                            <input type="number" id="year-filter" class="form-control" min="1900" max="2100">
-                                        </div>
-                                    </div>
-                                    <div class="col-12 col-lg-9 d-flex flex-wrap gap-2 mt-2">
-                                        <button id="wishlist-filter-button" class="btn btn-outline-primary btn-sm d-none" data-i18n-key="wishlist_filter_button">My Wishlist</button>
-                                    </div>
-                                    <div class="col-12 col-lg-3 mt-2 text-lg-end">
-                                        <button id="clear-filters-button" class="btn btn-outline-secondary w-100" data-i18n-key="clear_filters_button">Clear Filters</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <div id="game-collection" class="row">

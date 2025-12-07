@@ -624,6 +624,16 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn(`View element not found for: ${viewName}`);
         }
         
+        // Show collection controls only on collection view
+        const controls = document.getElementById('collection-controls-fixed');
+        if (viewName === 'collection') {
+            document.body.classList.add('showing-collection');
+            if (controls) controls.style.display = 'flex';
+        } else {
+            document.body.classList.remove('showing-collection');
+            if (controls) controls.style.display = 'none';
+        }
+        
         // Update active class for nav links
         Object.values(navLinks).forEach(link => link && link.classList.remove('active'));
         if (navLinks[viewName]) {

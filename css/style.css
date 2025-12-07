@@ -280,9 +280,8 @@ section {
 }
 
 #collection-controls-fixed {
-    position: -webkit-sticky; /* Safari support */
-    position: sticky;
-    /* Stick just below the top bar. JS keeps --header-height up to date. */
+    position: fixed;
+    /* Fixed below the header. JS keeps --header-height up to date. */
     top: var(--header-height, 56px); /* default fallback 56px */
     left: 0;
     right: 0;
@@ -294,13 +293,15 @@ section {
     min-height: 50px;
     width: 100%;
     box-sizing: border-box;
-    margin-left: -0.75rem;
-    margin-right: -0.75rem;
-    margin-bottom: 1rem;
+    will-change: top, transform; /* Performance optimization */
+    display: none; /* Hidden by default, JavaScript will control visibility */
+}
+
+/* Show controls only on collection view */
+body.showing-collection #collection-controls-fixed {
+    align-items: center;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
-    will-change: top, transform; /* Performance optimization */
-    pointer-events: auto; /* Ensure clicks are captured */
 }
 
 /* Ensure buttons inside sticky header are clickable and touch-friendly */
@@ -327,7 +328,6 @@ main, section {
 #collection-controls-fixed, #collection-controls-fixed * {
     touch-action: manipulation;
     -webkit-tap-highlight-color: rgba(0,0,0,0.06);
-}
 }
 
 #game-collection {
