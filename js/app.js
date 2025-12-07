@@ -649,11 +649,50 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchAndDisplayPolls();
         } else if (viewName === 'collection') {
             loadUserWishlist().then(() => fetchAndDisplayGames());
+            // After loading the collection, run a debug-pass to detect any elements
+            // that overflow the viewport horizontally. This will add the
+            // `.overflowing` class to problematic elements so they can be inspected
+            // and gently clamped via CSS. We run it slightly delayed to allow
+            // images to load and layout to settle.
+            setTimeout(() => detectOverflowInCollection(), 220);
         } else if (viewName === 'admin') {
             // Only allow admin to load admin data
             if (currentUser === adminUser) fetchAndDisplayGroups();
         } else if (viewName === 'group-edit') {
             // group-edit is opened via showGroupEdit which handles loading; nothing to do here
+        }
+    }
+
+    // Scans the collection view for elements that extend beyond the viewport
+    // and marks them with the `.overflowing` class. Also logs offenders to
+    // the console for easier debugging. Called after the collection is rendered.
+    function detectOverflowInCollection() {
+        try {
+            const container = document.getElementById('collection-view');
+            if (!container) return;
+            const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+            const offenders = [];
+            // check only visible descendants
+            const els = Array.from(container.querySelectorAll('*'));
+            els.forEach(el => {
+                // skip elements that are not displayed
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') return;
+                const rect = el.getBoundingClientRect();
+                if (rect.right > vw + 1 || rect.left < -1) {
+                    el.classList.add('overflowing');
+                    offenders.push({ tag: el.tagName, cls: el.className, rect });
+                } else {
+                    el.classList.remove('overflowing');
+                }
+            });
+            if (offenders.length) {
+                console.warn('Detected horizontal overflow in #collection-view. Offending elements:', offenders);
+            } else {
+                console.info('No horizontal overflow detected in #collection-view.');
+            }
+        } catch (err) {
+            console.error('Error running detectOverflowInCollection:', err);
         }
     }
 
@@ -1193,6 +1232,46 @@ document.addEventListener('DOMContentLoaded', () => {
             el.classList.remove('d-none');
         }
     }
+
+    // Responsive helper: force a compact nav class when the viewport is narrow.
+    // This complements CSS media queries and helps when styles are cached or
+    // when the UA scales the viewport. Threshold mirrors CSS breakpoint.
+    function applyNavCompactClass() {
+        try {
+            const threshold = 520; // px, matches CSS breakpoint
+            const w = window.innerWidth || document.documentElement.clientWidth;
+            const isCompact = w <= threshold;
+
+            // Detect wrapping of the nav tabs as an additional fallback.
+            const nav = document.querySelector('.nav.nav-tabs');
+            let wrapped = false;
+            if (nav) {
+                const items = nav.querySelectorAll('.nav-item');
+                if (items && items.length > 1) {
+                    const firstTop = items[0].offsetTop;
+                    for (let i = 1; i < items.length; i++) {
+                        if (items[i].offsetTop !== firstTop) { wrapped = true; break; }
+                    }
+                }
+            }
+
+            const shouldCompact = isCompact || wrapped;
+            if (shouldCompact) {
+                document.documentElement.classList.add('nav-compact');
+            } else {
+                document.documentElement.classList.remove('nav-compact');
+            }
+
+            // Debugging logs visible in DevTools console when needed
+            if (window.location.search.indexOf('navdebug') !== -1) {
+                console.info('applyNavCompactClass:', { w, threshold, isCompact, wrapped, shouldCompact });
+            }
+        } catch (e) {
+            console.warn('applyNavCompactClass error', e);
+        }
+    }
+    // Apply immediately and on resize/orientation change
+    try { applyNavCompactClass(); window.addEventListener('resize', applyNavCompactClass); window.addEventListener('orientationchange', applyNavCompactClass); } catch (e) {}
 
     // Change active group and rebind collection refs. Call this when user joins/switches groups.
     function setActiveGroup(groupId) {

@@ -240,108 +240,38 @@ section {
 .next-game-calendar .ngn-weekday {
     font-size: 0.8rem;
 
-/* Keep nav tabs on a single line; allow horizontal scrolling instead of wrapping */
-/* Stronger, more specific nav compression rules to avoid wrapping */
-.container nav .nav.nav-tabs {
+/* --- Navigation Tab Styling: Single Row with Dynamic Sizing --- */
+.nav-tabs {
     display: flex !important;
     flex-wrap: nowrap !important;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    gap: 0 !important;
 }
-.container nav .nav.nav-tabs .nav-item {
-    flex: 0 0 auto !important; /* Prevent items from stretching/wrapping */
-    white-space: nowrap !important;
-}
-.container nav .nav.nav-tabs .nav-link {
-    padding: 0.28rem 0.46rem !important; /* compact padding */
-    font-size: 0.92rem !important; /* slightly smaller to fit */
-    line-height: 1 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-    max-width: clamp(70px, 18vw, 200px) !important;
-}
-
-/* Very small screens: compress further */
-@media (max-width: 520px) {
-    .container nav .nav.nav-tabs .nav-link {
-        padding: 0.18rem 0.32rem !important;
-        font-size: 0.82rem !important;
-        max-width: clamp(50px, 28vw, 130px) !important;
-    }
-}
-
-/* Extremely compact override to ensure nav tabs remain small and avoid wrapping.
-   This rule is intentionally specific and uses !important so it wins over
-   other theme or browser styles. If you still see large tabs, do a hard-refresh. */
-.container nav .nav.nav-tabs .nav-link {
-    padding: 0.08rem 0.18rem !important;
-    font-size: 0.78rem !important;
-    max-width: clamp(44px, 16vw, 160px) !important;
-    min-width: 40px !important;
-}
-@media (max-width: 520px) {
-    .container nav .nav.nav-tabs .nav-link {
-        padding: 0.08rem 0.14rem !important;
-        font-size: 0.74rem !important;
-        max-width: clamp(40px, 28vw, 110px) !important;
-    }
-}
-
-/* Icon/text swap: hide long text and show icon-only at narrow widths */
-.container nav .nav.nav-tabs .nav-icon { display: none; }
-.container nav .nav.nav-tabs .nav-text { display: inline-block; }
-
-@media (max-width: 520px) {
-    .container nav .nav.nav-tabs .nav-icon { display: inline-block; margin-right: 0.25rem; }
-    .container nav .nav.nav-tabs .nav-text { display: none !important; }
-    .container nav .nav.nav-tabs .nav-link { padding-left: 0.35rem !important; padding-right: 0.35rem !important; }
-}
-@media (max-width: 520px) {
-    .nav-tabs .nav-link {
-        padding: 0.25rem 0.45rem;
-        font-size: 0.95rem;
-    }
-}
-
-/* Compress tab labels responsively and show ellipsis when space is tight */
-.nav-tabs {
-    gap: 0.25rem;
+.nav-tabs .nav-item {
+    flex: 1 1 auto !important;
+    min-width: 0;
 }
 .nav-tabs .nav-link {
-    display: inline-flex;
-    align-items: center;
+    flex: 1 1 100%;
+    padding: clamp(0.3rem, 1vw, 0.5rem) clamp(0.1rem, 1.2vw, 0.5rem) !important;
+    font-size: clamp(0.7rem, 1.8vw, 0.95rem) !important;
+    text-align: center;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-    /* Allow the tab to scale relative to viewport but keep reasonable max */
-    max-width: clamp(80px, 18vw, 220px);
+}
+.nav-tabs .nav-icon {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.25rem;
+}
+.nav-tabs .nav-text {
+    display: inline;
 }
 
-/* Larger screens: give tabs a bit more room */
-@media (min-width: 900px) {
-    .nav-tabs .nav-link {
-        max-width: 240px;
-        padding: 0.45rem 0.75rem;
-    }
-}
-
-/* Very small screens: allow slightly wider proportional space and smaller font */
-@media (max-width: 520px) {
-    .nav-tabs .nav-link {
-        max-width: clamp(60px, 30vw, 140px);
-        font-size: 0.9rem;
-        padding: 0.2rem 0.35rem;
-    }
-}
-.nav-tabs::-webkit-scrollbar {
-    height: 6px;
-}
-.nav-tabs::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.12);
-    border-radius: 6px;
+@media (max-width: 480px) {
+    .nav-tabs .nav-text { display: none; }
+    .nav-tabs .nav-icon { margin-right: 0; }
+    .nav-tabs .nav-link { padding: clamp(0.25rem, 0.8vw, 0.4rem) !important; }
 }
     color: #6c757d;
 }
@@ -503,6 +433,92 @@ section {
     0% { box-shadow: 0 0 0 0 rgba(13,110,253,0.18); }
     30% { box-shadow: 0 8px 24px rgba(13,110,253,0.12); }
     100% { box-shadow: 0 0 0 0 rgba(13,110,253,0); }
+}
+
+
+/* Fixed bottom navigation - pinned to viewport and reserves body space */
+.fixed-bottom-nav {
+    position: fixed !important;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1040;
+    background: rgba(255,255,255,0.98);
+    border-top: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 -6px 16px rgba(0,0,0,0.06);
+    padding: 0.25rem 0;
+    margin: 0 !important; /* override any vertical margins */
+}
+
+.fixed-bottom-nav .nav-tabs {
+    display: flex !important;
+    margin: 0;
+    border-bottom: none;
+    justify-content: space-between; /* distribute items evenly */
+}
+
+/* Reserve space at the bottom of the page so content isn't hidden under the fixed nav */
+body {
+    padding-bottom: calc(var(--bottom-nav-height, 64px) + 0.75rem);
+}
+
+@media (min-width: 768px) {
+    /* slightly taller nav on larger screens */
+    :root { --bottom-nav-height: 72px; }
+}
+
+/* Prevent horizontal scrolling on collection page: ensure grid/cards don't overflow */
+#collection-view {
+    overflow-x: hidden;
+}
+
+#game-collection {
+    margin-left: 0; /* avoid negative row gutters causing scroll */
+    margin-right: 0;
+}
+
+.game-card {
+    box-sizing: border-box;
+    max-width: 100%;
+    word-wrap: break-word;
+}
+
+/* Ensure images and card content cannot push the row wider than viewport */
+.game-card img,
+.game-card .card-img-top {
+    max-width: 100%;
+    height: auto; /* let aspect ratio adapt instead of forcing width overflow */
+}
+
+/* Defensive rule: hide any unintended horizontal overflow globally on collection view */
+#collection-view * {
+    max-width: 100vw;
+}
+
+/* Outline overflowing elements for debugging and apply a safe clamp */
+.overflowing {
+    outline: 3px solid rgba(255,0,0,0.65);
+    max-width: 100% !important;
+    overflow-wrap: break-word !important;
+}
+
+/* Defensive global rule: hide any residual horizontal scrollbar when no real content overflows.
+   This prevents the persistent scrollbar the user saw on Collection/Admin pages. */
+html, body {
+    overflow-x: hidden;
+}
+
+/* Ensure the fixed bottom nav never forces horizontal overflow */
+.fixed-bottom-nav {
+    left: 0;
+    right: 0;
+    width: 100vw; /* use viewport width to avoid scroll due to 100% + body padding */
+    box-sizing: border-box;
+}
+
+.fixed-bottom-nav .nav-tabs {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
 }
 
 
