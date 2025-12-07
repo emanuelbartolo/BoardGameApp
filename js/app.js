@@ -623,6 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             console.warn(`View element not found for: ${viewName}`);
         }
+        
         // Update active class for nav links
         Object.values(navLinks).forEach(link => link && link.classList.remove('active'));
         if (navLinks[viewName]) {
@@ -700,57 +701,86 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateHeaderShrink() {
         try {
             const header = document.querySelector('.site-header');
-            if (!header) return;
-            if (window.scrollY > 80) {
+            const scrollContainer = document.getElementById('main-scroll-container');
+            if (!header || !scrollContainer) return;
+            
+            // Use container scrollTop instead of window.scrollY
+            if (scrollContainer.scrollTop > 50) {
                 header.classList.add('shrunk');
             } else {
                 header.classList.remove('shrunk');
             }
+            // Update sizing after class change
+            setTimeout(updateHeaderSizing, 250);
         } catch (err) {
             console.error('Error in updateHeaderShrink:', err);
         }
     }
 
-    // Throttle scroll handler lightly
-    let _hsT = null;
-    window.addEventListener('scroll', () => {
-        if (_hsT) return;
-        _hsT = setTimeout(() => { updateHeaderShrink(); _hsT = null; }, 100);
-    }, { passive: true });
-    // Run at load to set initial state
-    window.addEventListener('load', updateHeaderShrink);
-    window.addEventListener('resize', updateHeaderShrink);
-
-    // Measure the header and set body padding so content isn't hidden under it.
+    // Measure the header and set CSS variable
     function updateHeaderSizing() {
         try {
             const header = document.querySelector('.site-header');
             if (!header) return;
-            // Use the header's rendered height (including margins if any)
+            
             const rect = header.getBoundingClientRect();
             const totalHeight = Math.ceil(rect.height);
-            document.body.style.paddingTop = totalHeight + 'px';
+            // Set CSS variable used by sticky controls
+            document.documentElement.style.setProperty('--header-height', totalHeight + 'px');
+
+            // As a fallback for browsers that don't handle CSS variable in `top` for sticky,
+            // set the inline top on the controls element directly.
+            const controls = document.getElementById('collection-controls-fixed');
+            if (controls) {
+                controls.style.top = totalHeight + 'px';
+                controls.style.pointerEvents = 'auto';
+            }
         } catch (err) {
             console.error('Error in updateHeaderSizing:', err);
         }
     }
 
-    // Keep sizing in sync: call sizing when we toggle shrink, on load, and on resize
-    const _orig_updateHeaderShrink = updateHeaderShrink;
-    function _wrap_updateHeaderShrink() {
-        _orig_updateHeaderShrink();
-        // sizing after class changes take effect
-        setTimeout(updateHeaderSizing, 60);
+    // Throttle scroll handler
+    let _hsT = null;
+    const scrollContainer = document.getElementById('main-scroll-container');
+    if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', () => {
+            if (_hsT) return;
+            _hsT = setTimeout(() => { updateHeaderShrink(); _hsT = null; }, 100);
+        }, { passive: true });
     }
-    // replace listeners to use wrapped version
-    window.removeEventListener('scroll', () => {});
-    window.addEventListener('scroll', () => {
-        if (_hsT) return;
-        _hsT = setTimeout(() => { _wrap_updateHeaderShrink(); _hsT = null; }, 100);
-    }, { passive: true });
 
-    window.addEventListener('load', () => { _wrap_updateHeaderShrink(); updateHeaderSizing(); });
-    window.addEventListener('resize', () => { _wrap_updateHeaderShrink(); updateHeaderSizing(); });
+    // Initial setup
+    window.addEventListener('load', () => { updateHeaderShrink(); updateHeaderSizing(); });
+    window.addEventListener('resize', () => { updateHeaderShrink(); updateHeaderSizing(); });
+
+    // Adjust bottom nav to avoid overlapping browser UI (Android quick-scroll arrow, etc.)
+    function updateBottomNavOffset() {
+        try {
+            // Base offset in px (small gap)
+            let offset = 8;
+
+            // If VisualViewport is available, compute any extra inset caused by browser chrome
+            if (window.visualViewport) {
+                const vv = window.visualViewport;
+                // Extra vertical space that is not part of the layout viewport
+                const extra = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
+                if (extra > 0) offset = Math.max(offset, Math.ceil(extra + 6));
+            }
+
+            // Small Android-specific nudge (helps with some Chrome/Samsung overlays)
+            if (/Android/i.test(navigator.userAgent)) offset = Math.max(offset, 12);
+
+            document.documentElement.style.setProperty('--app-bottom-offset', offset + 'px');
+        } catch (err) {
+            console.error('updateBottomNavOffset error', err);
+        }
+    }
+
+    // Run at load and on viewport/resize changes
+    window.addEventListener('load', updateBottomNavOffset);
+    window.addEventListener('resize', updateBottomNavOffset);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', updateBottomNavOffset);
 
     // Fetch next upcoming event and render a small calendar card
     async function fetchNextGameNight() {
@@ -1804,14 +1834,120 @@ document.addEventListener('DOMContentLoaded', () => {
     navLinks.admin.addEventListener('click', (e) => { e.preventDefault(); window.location.hash = 'admin'; });
     navLinks.events.addEventListener('click', (e) => { e.preventDefault(); window.location.hash = 'events'; });
 
+    // Compact control toggles for collection view with mutually exclusive panels
+    const searchToggle = document.getElementById('search-toggle');
+    const sortToggle = document.getElementById('sort-toggle');
+    const filterToggle = document.getElementById('filter-toggle');
+    const searchCollapseEl = document.getElementById('search-collapse');
+    const sortCollapseEl = document.getElementById('sort-collapse');
+    const filterCollapseEl = document.getElementById('filter-collapse');
+    const searchInputEl = document.getElementById('search-input');
+
+    // Helper to close all panels and remove active state
+    const closeAllPanels = () => {
+        [searchCollapseEl, sortCollapseEl, filterCollapseEl].forEach(el => {
+            if (el) {
+                const bs = bootstrap.Collapse.getInstance(el);
+                if (bs) bs.hide();
+            }
+        });
+        [searchToggle, sortToggle, filterToggle].forEach(btn => {
+            if (btn) btn.classList.remove('active');
+        });
+    };
+
+    // Helper to open a specific panel and close others
+    const openPanel = (toggleBtn, collapseEl) => {
+        closeAllPanels();
+        if (toggleBtn && collapseEl) {
+            const bs = bootstrap.Collapse.getOrCreateInstance(collapseEl);
+            bs.show();
+            toggleBtn.classList.add('active');
+        }
+    };
+
+    if (searchToggle && searchCollapseEl) {
+        searchToggle.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            const bs = bootstrap.Collapse.getInstance(searchCollapseEl);
+            const isOpen = bs && searchCollapseEl.classList.contains('show');
+            if (isOpen) {
+                closeAllPanels();
+            } else {
+                openPanel(searchToggle, searchCollapseEl);
+                // focus when opening
+                setTimeout(() => { if (searchInputEl) searchInputEl.focus(); }, 200);
+            }
+        });
+    }
+
+    if (sortToggle && sortCollapseEl) {
+        sortToggle.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            const bs = bootstrap.Collapse.getInstance(sortCollapseEl);
+            const isOpen = bs && sortCollapseEl.classList.contains('show');
+            if (isOpen) {
+                closeAllPanels();
+            } else {
+                openPanel(sortToggle, sortCollapseEl);
+            }
+        });
+    }
+
+    // Fallback for touch devices: some browsers/webviews drop click events
+    // when elements sit inside transformed/scrolling containers. To improve
+    // responsiveness, synthesize a click on pointerdown for touch input so
+    // the existing click handlers run immediately.
+    (function attachTouchFallback() {
+        const controlsRoot = document.getElementById('collection-controls-fixed');
+        if (!controlsRoot) return;
+
+        controlsRoot.addEventListener('pointerdown', (ev) => {
+            try {
+                // Only synthesize for touch input to avoid duplicating mouse clicks
+                if (ev.pointerType && ev.pointerType !== 'touch') return;
+
+                const btn = ev.target.closest('button, .btn');
+                if (!btn) return;
+
+                // Synthesize click immediately to ensure handlers run on touch devices
+                const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+                btn.dispatchEvent(clickEvent);
+
+                // Prevent default to avoid potential duplicate native click in some contexts
+                ev.preventDefault();
+            } catch (err) {
+                // silent
+            }
+        }, { passive: false });
+    })();
+
+    if (filterToggle && filterCollapseEl) {
+        filterToggle.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            const bs = bootstrap.Collapse.getInstance(filterCollapseEl);
+            const isOpen = bs && filterCollapseEl.classList.contains('show');
+            if (isOpen) {
+                closeAllPanels();
+            } else {
+                openPanel(filterToggle, filterCollapseEl);
+            }
+        });
+    }
+
     // Listen for hash changes
     window.addEventListener('hashchange', handleHashChange);
 
     // Layout Switcher
     layoutSwitcher.addEventListener('click', (e) => {
-        if (e.target.tagName === 'BUTTON') {
-            applyLayout(e.target.dataset.layout);
-            fetchAndDisplayGames(); // Re-render the collection with the new layout classes
+        // Support clicks on child SVG/path elements by finding the nearest button ancestor
+        const btn = e.target.closest('button');
+        if (btn && layoutSwitcher.contains(btn)) {
+            const layout = btn.dataset.layout;
+            if (layout) {
+                applyLayout(layout);
+                fetchAndDisplayGames(); // Re-render the collection with the new layout classes
+            }
         }
     });
 

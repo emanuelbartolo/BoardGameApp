@@ -1,7 +1,7 @@
 /* Add your custom styles here */
 body {
     /* Body padding-top is managed at runtime to match the header height. */
-    padding-top: 0;
+    /* padding-top: 0; - Removed for App Shell */
 }
 section {
     margin-bottom: 2rem;
@@ -274,6 +274,101 @@ section {
     .nav-tabs .nav-icon { margin-right: 0; }
     .nav-tabs .nav-link { padding: clamp(0.25rem, 0.8vw, 0.4rem) !important; }
 }
+
+#collection-view {
+    padding-top: 0;
+}
+
+#collection-controls-fixed {
+    position: -webkit-sticky; /* Safari support */
+    position: sticky;
+    /* Stick just below the top bar. JS keeps --header-height up to date. */
+    top: var(--header-height, 56px); /* default fallback 56px */
+    left: 0;
+    right: 0;
+    z-index: 1040; /* High z-index to stay on top */
+    background: #ffffff;
+    border-bottom: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    padding: 0.5rem 0;
+    min-height: 50px;
+    width: 100%;
+    box-sizing: border-box;
+    margin-left: -0.75rem;
+    margin-right: -0.75rem;
+    margin-bottom: 1rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    will-change: top, transform; /* Performance optimization */
+    pointer-events: auto; /* Ensure clicks are captured */
+}
+
+/* Ensure buttons inside sticky header are clickable and touch-friendly */
+#collection-controls-fixed button,
+#collection-controls-fixed .btn {
+    touch-action: manipulation;
+    position: relative;
+    z-index: 1041;
+    cursor: pointer;
+}
+
+/* Ensure parents don't clip sticky behavior */
+main, section {
+    overflow: visible !important;
+}
+
+/* Ensure the internal scroll container behaves well on mobile (iOS) and allows fast touch interactions */
+#main-scroll-container {
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+}
+
+/* Make all interactive elements in the sticky controls explicitly touch-friendly */
+#collection-controls-fixed, #collection-controls-fixed * {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0,0,0,0.06);
+}
+}
+
+#game-collection {
+    margin-top: 0;
+    padding-top: 0;
+}
+
+#collection-controls-compact {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+#collection-controls-compact .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+}
+#collection-controls-compact .btn svg {
+    width: 18px;
+    height: 18px;
+}
+#collection-controls-compact .btn.active {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+#collection-controls-compact .btn.active:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+#collection-controls-expanded .collapse .form-control,
+#collection-controls-expanded .collapse .form-select {
+    max-width: 100%;
+}
+
+/* Ensure the expanded row appears below the compact icons and uses full width */
+#collection-controls-expanded { margin-top: 6px; }
     color: #6c757d;
 }
 .next-game-calendar .ngn-day {
@@ -438,14 +533,16 @@ section {
 
 /* Header (top strip + banner) fixed and shrinkable */
 .site-header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
+    /* position: fixed; - Removed for app shell layout */
+    position: relative;
+    /* top: 0; left: 0; right: 0; - Removed */
     z-index: 1050;
     background: #ffffff;
     transition: all 240ms ease;
     box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    width: 100%;
+    /* Ensure header doesn't overlap sticky controls when scrolling starts */
+    margin-bottom: 0; 
 }
 .site-header .top-strip {
     transition: padding 240ms ease, height 240ms ease;
@@ -581,7 +678,13 @@ body {
 
 /* Prevent horizontal scrolling on collection page: ensure grid/cards don't overflow */
 #collection-view {
-    overflow-x: hidden;
+    /* overflow-x: hidden; - Removed to fix sticky positioning */
+    overflow: visible !important;
+}
+
+/* Ensure main and container don't trap sticky elements */
+main, .container {
+    overflow: visible !important;
 }
 
 #game-collection {
@@ -617,15 +720,21 @@ body {
 /* Defensive global rule: hide any residual horizontal scrollbar when no real content overflows.
    This prevents the persistent scrollbar the user saw on Collection/Admin pages. */
 html, body {
-    overflow-x: hidden;
+    /* overflow-x: hidden; - Removed to fix sticky positioning issues */
+    overflow: visible !important;
 }
 
 /* Ensure the fixed bottom nav never forces horizontal overflow */
 .fixed-bottom-nav {
     left: 0;
     right: 0;
+    /* Place the nav above any safe-area and additional app offset (set by JS) */
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--app-bottom-offset, 8px));
     width: 100vw; /* use viewport width to avoid scroll due to 100% + body padding */
     box-sizing: border-box;
+    z-index: 1030;
+    background: #fff; /* Ensure background is opaque */
+    border-top: 1px solid #dee2e6; /* Add border for separation */
 }
 
 .fixed-bottom-nav .nav-tabs {
