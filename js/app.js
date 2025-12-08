@@ -1724,11 +1724,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchAndDisplayShortlist() {
         // Use onSnapshot for real-time updates
-        shortlistCollectionRef.onSnapshot(snapshot => {
+        shortlistCollectionRef.onSnapshot(async snapshot => {
             shortlistGamesContainer.innerHTML = ''; // Clear old list
             if (snapshot.empty) {
                 shortlistGamesContainer.innerHTML = '<p>No games on the shortlist yet.</p>';
                 return;
+            }
+
+            // Check attendance for next event
+            let canVote = false;
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const eventSnap = await eventsCollectionRef
+                    .where('date', '>=', today)
+                    .orderBy('date', 'asc')
+                    .limit(1)
+                    .get();
+                
+                if (!eventSnap.empty) {
+                    const nextEvent = eventSnap.docs[0].data();
+                    if (currentUser && nextEvent.attendees && nextEvent.attendees.includes(currentUser)) {
+                        canVote = true;
+                    }
+                }
+            } catch (err) {
+                console.error("Error checking next event:", err);
             }
 
             const games = snapshot.docs.map(doc => doc.data());
@@ -1742,10 +1762,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isTopVoted = maxVotes > 0 && voteCount === maxVotes;
                 const badgeClass = isTopVoted ? 'top-voted' : '';
                 const userHasVoted = currentUser && voters.includes(currentUser);
-                // Single toggle button: 'Vote' to support, 'Voted ✓' when already supported
+                
+                // Determine what to show for the vote control
+                let voteControlHTML = '';
                 const btnText = userHasVoted ? 'Voted ✓' : 'Vote';
-                const btnTitle = userHasVoted ? 'You have voted — click to remove your vote' : 'Click to vote for this game';
-                const btnClass = `btn btn-sm btn-vote shortlist-toggle-button ${userHasVoted ? 'voted' : ''}`;
+                let btnTitle = userHasVoted ? 'You have voted — click to remove your vote' : 'Click to vote for this game';
+
+                if (userHasVoted) {
+                    // User has voted: show active button (always allowed to remove vote)
+                    const btnClass = `btn btn-sm btn-vote shortlist-toggle-button voted`;
+                    voteControlHTML = `<button class="${btnClass}" data-bgg-id="${game.bggId}" title="${btnTitle}" aria-label="${btnTitle}" aria-pressed="true">${btnText}</button>`;
+                } else if (canVote) {
+                    // User can vote: show inactive button
+                    const btnClass = `btn btn-sm btn-vote shortlist-toggle-button`;
+                    voteControlHTML = `<button class="${btnClass}" data-bgg-id="${game.bggId}" title="${btnTitle}" aria-label="${btnTitle}" aria-pressed="false">${btnText}</button>`;
+                } else {
+                    // User cannot vote and hasn't voted: show text
+                    const msg = translations.attend_to_vote || 'Attend to vote';
+                    voteControlHTML = `<span class="small text-muted fst-italic me-2">${msg}</span>`;
+                }
+
                 const removeBtn = (currentUser === adminUser) ? `<button class="btn btn-sm btn-outline-danger ms-2 remove-shortlist-button" data-bgg-id="${game.bggId}">Remove</button>` : '';
 
                 const gameCard = `
@@ -1758,7 +1794,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <p class="card-text">${game.year || ''}</p>
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div class="d-flex align-items-center">
-                                        <button class="${btnClass}" data-bgg-id="${game.bggId}" title="${btnTitle}" aria-label="${btnTitle}" aria-pressed="${userHasVoted}">${btnText}</button>
+                                        ${voteControlHTML}
                                         ${removeBtn}
                                     </div>
                                     <span class="voter-names" title="${voters.join(', ')}">
@@ -2492,6 +2528,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.classList.contains('shortlist-toggle-button')) return;
         if (!currentUser) { alert('Please login to vote.'); return; }
 
+        // Verify attendance before allowing a NEW vote
+        // (Allow removing an existing vote regardless of attendance)
+        const isRemovingVote = e.target.classList.contains('voted');
+        if (!isRemovingVote) {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const eventSnap = await eventsCollectionRef
+                    .where('date', '>=', today)
+                    .orderBy('date', 'asc')
+                    .limit(1)
+                    .get();
+                
+                let canVote = false;
+                if (!eventSnap.empty) {
+                    const nextEvent = eventSnap.docs[0].data();
+                    if (nextEvent.attendees && nextEvent.attendees.includes(currentUser)) {
+                        canVote = true;
+                    }
+                }
+
+                if (!canVote) {
+                    alert('You must be registered as attending the next game night to vote.');
+                    return;
+                }
+            } catch (err) {
+                console.error("Error verifying attendance:", err);
+                alert('Could not verify attendance status.');
+                return;
+            }
+        }
+
         const bggId = e.target.dataset.bggId;
         const gameRef = shortlistCollectionRef.doc(bggId);
 
@@ -2668,7 +2735,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
     });
 
-    // Events: create and list
+        // Events: create and list
         async function fetchAndDisplayEvents() {
             const list = document.getElementById('events-list');
             list.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
@@ -2681,14 +2748,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 snapshot.forEach(doc => {
                     const e = doc.data();
                     const when = e.date ? `${e.date} ${e.time || ''}` : (e.time || '');
+                    const editBtn = (currentUser === adminUser) ? `<button class="btn btn-sm btn-outline-primary ms-2 edit-event-button" data-id="${doc.id}">Edit</button>` : '';
                     const removeBtn = (currentUser === adminUser) ? `<button class="btn btn-sm btn-outline-danger ms-2 remove-event-button" data-id="${doc.id}">Delete</button>` : '';
-                        html += `<div id="event-${doc.id}" class="list-group-item d-flex justify-content-between align-items-start" data-event-id="${doc.id}">
-                        <div>
-                            <div class="fw-bold">${e.title}</div>
+                    
+                    // Attendance Logic
+                    const attendees = e.attendees || [];
+                    const isAttending = currentUser && attendees.includes(currentUser);
+                    const attendBtnText = isAttending ? (translations.cancel_attendance || 'Cancel Attendance') : (translations.attend || 'Attend');
+                    const attendBtnClass = isAttending ? 'btn-outline-secondary' : 'btn-primary';
+                    const attendBtnAction = isAttending ? 'cancel-attendance' : 'attend-event';
+                    
+                    // Visual cue for attendance
+                    const attendingBadge = isAttending ? `<span class="badge bg-success ms-2">${translations.attending_badge || 'Attending ✓'}</span>` : '';
+
+                    // Only show attend button if logged in
+                    const attendBtn = currentUser ? 
+                        `<button class="btn btn-sm ${attendBtnClass} ms-2 ${attendBtnAction}-button" data-id="${doc.id}">${attendBtnText}</button>` : '';
+
+                    const attendeesList = attendees.length > 0 ? 
+                        `<div class="small text-muted mt-2"><strong>${translations.attendees || 'Attendees'}:</strong> ${attendees.join(', ')}</div>` : '';
+
+                    html += `<div id="event-${doc.id}" class="list-group-item d-flex justify-content-between align-items-start ${isAttending ? 'list-group-item-success' : ''}" data-event-id="${doc.id}" style="${isAttending ? '--bs-bg-opacity: .1;' : ''}">
+                        <div class="w-100">
+                            <div class="d-flex justify-content-between">
+                                <div class="fw-bold">
+                                    ${e.title}
+                                    ${attendingBadge}
+                                </div>
+                                <div>
+                                    ${attendBtn}
+                                    ${editBtn}
+                                    ${removeBtn}
+                                </div>
+                            </div>
                             <div class="text-muted">${when} — ${e.location || ''}</div>
                             <div class="small text-muted">Created by: ${e.createdBy || 'unknown'}</div>
+                            ${attendeesList}
                         </div>
-                        <div>${removeBtn}</div>
                     </div>`;
                 });
                 html += '</div>';
@@ -2714,42 +2810,109 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error fetching events:', err);
                 list.innerHTML = '<p class="text-danger">Could not load events.</p>';
             });
-        }
-
-        // Create Event
-        document.getElementById('save-event-button').addEventListener('click', async () => {
+        }        // Create/Edit Event
+        document.getElementById('save-event-button').addEventListener('click', async (e) => {
             if (!currentUser) { alert('Please login to create events.'); return; }
             const title = document.getElementById('event-title').value.trim();
             const date = document.getElementById('event-date').value;
             const time = document.getElementById('event-time').value;
             const location = document.getElementById('event-location').value.trim();
             if (!title || !date) { alert('Please provide a title and date.'); return; }
+            
+            const editingId = e.target.dataset.editingId;
+
             try {
-                await eventsCollectionRef.add({ title, date, time, location, createdBy: currentUser, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                if (editingId) {
+                    // Update existing event
+                    await eventsCollectionRef.doc(editingId).update({ title, date, time, location });
+                } else {
+                    // Create new event
+                    await eventsCollectionRef.add({ title, date, time, location, createdBy: currentUser, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                }
+                
                 // close modal
                 const modalEl = document.getElementById('create-event-modal');
                 const modal = bootstrap.Modal.getInstance(modalEl);
                 modal.hide();
-                // clear inputs
+                // clear inputs and reset state
                 document.getElementById('event-title').value = '';
                 document.getElementById('event-date').value = '';
                 document.getElementById('event-time').value = '';
                 document.getElementById('event-location').value = '';
+                delete e.target.dataset.editingId;
+                document.querySelector('#create-event-modal .modal-title').textContent = translations.modal_create_event_title || 'Create New Event';
+                e.target.textContent = translations.modal_create_event_button || 'Create Event';
             } catch (err) {
-                console.error('Error creating event:', err);
-                alert('Could not create event.');
+                console.error('Error saving event:', err);
+                alert('Could not save event.');
             }
         });
 
-        // Delete event (admin only)
+        // Reset modal state when opening for creation
+        document.getElementById('create-event-button').addEventListener('click', () => {
+            document.getElementById('event-title').value = '';
+            document.getElementById('event-date').value = '';
+            document.getElementById('event-time').value = '';
+            document.getElementById('event-location').value = '';
+            const saveBtn = document.getElementById('save-event-button');
+            delete saveBtn.dataset.editingId;
+            document.querySelector('#create-event-modal .modal-title').textContent = translations.modal_create_event_title || 'Create New Event';
+            saveBtn.textContent = translations.modal_create_event_button || 'Create Event';
+        });
+
+        // Event actions (delete, attend, cancel, edit)
         document.getElementById('events-list').addEventListener('click', async (e) => {
+            const id = e.target.dataset.id;
+            if (!id) return;
+
             if (e.target.classList.contains('remove-event-button')) {
-                const id = e.target.dataset.id;
                 try {
                     await eventsCollectionRef.doc(id).delete();
                 } catch (err) {
                     console.error('Error deleting event:', err);
                     alert('Could not delete event.');
+                }
+            } else if (e.target.classList.contains('edit-event-button')) {
+                try {
+                    const doc = await eventsCollectionRef.doc(id).get();
+                    if (doc.exists) {
+                        const data = doc.data();
+                        document.getElementById('event-title').value = data.title || '';
+                        document.getElementById('event-date').value = data.date || '';
+                        document.getElementById('event-time').value = data.time || '';
+                        document.getElementById('event-location').value = data.location || '';
+                        
+                        const saveBtn = document.getElementById('save-event-button');
+                        saveBtn.dataset.editingId = id;
+                        document.querySelector('#create-event-modal .modal-title').textContent = translations.modal_edit_event_title || 'Edit Event';
+                        saveBtn.textContent = translations.modal_update_event_button || 'Update Event';
+                        
+                        const modal = new bootstrap.Modal(document.getElementById('create-event-modal'));
+                        modal.show();
+                    }
+                } catch (err) {
+                    console.error('Error fetching event for edit:', err);
+                    alert('Could not load event details.');
+                }
+            } else if (e.target.classList.contains('attend-event-button')) {
+                if (!currentUser) { alert('Please login to attend.'); return; }
+                try {
+                    await eventsCollectionRef.doc(id).update({
+                        attendees: firebase.firestore.FieldValue.arrayUnion(currentUser)
+                    });
+                } catch (err) {
+                    console.error('Error attending event:', err);
+                    alert('Could not update attendance.');
+                }
+            } else if (e.target.classList.contains('cancel-attendance-button')) {
+                if (!currentUser) { alert('Please login.'); return; }
+                try {
+                    await eventsCollectionRef.doc(id).update({
+                        attendees: firebase.firestore.FieldValue.arrayRemove(currentUser)
+                    });
+                } catch (err) {
+                    console.error('Error cancelling attendance:', err);
+                    alert('Could not update attendance.');
                 }
             }
         });
