@@ -611,6 +611,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         // Also update dynamic parts of the UI that are not in the initial HTML
         updateUserDisplay();
+        updateWishlistButtonLabel();
+        updateActiveGroupDisplay();
+
+        // Update collection count pill label
+        const pillLabel = document.querySelector('#collection-count-pill .pill-label');
+        if (pillLabel) {
+            pillLabel.textContent = (translations && translations.collection_label_games) ? translations.collection_label_games : 'games';
+        }
+
+        // Update Event Buttons (Attend/Cancel)
+        document.querySelectorAll('.attend-event-button').forEach(btn => {
+            btn.textContent = translations.attend || 'Attend';
+        });
+        document.querySelectorAll('.cancel-attendance-button').forEach(btn => {
+            btn.textContent = translations.cancel_attendance || 'Cancel Attendance';
+        });
+        document.querySelectorAll('.badge.bg-success').forEach(badge => {
+            if (badge.textContent.includes('✓')) { // Simple check to target the attending badge
+                badge.textContent = translations.attending_badge || 'Attending ✓';
+            }
+        });
+
+        // Update Shortlist "Attend to vote" message
+        // We look for the specific span with the text-muted class inside the shortlist container
+        const shortlistContainer = document.getElementById('shortlist-games');
+        if (shortlistContainer) {
+            shortlistContainer.querySelectorAll('span.small.text-muted.fst-italic').forEach(span => {
+                span.textContent = translations.attend_to_vote || 'Attend to vote';
+            });
+        }
     }
     // --- End Localization ---
 
@@ -903,11 +933,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentLayout = layout;
     }
 
-    // Ensure we set active group refs on startup — but only show a persisted
-    // active group if the current user actually belongs to it. This avoids
-    // showing an active group for newly created or non-member users when a
-    // previous selection remains in localStorage.
-    (async function verifyInitialActiveGroup() {
+    // verifyInitialActiveGroup logic moved to App Initialization block
+    async function verifyInitialActiveGroup() {
         try {
             if (currentUser && activeGroupId && activeGroupId !== 'default') {
                 const memRef = db.collection('groups').doc(activeGroupId).collection('members').doc(currentUser);
@@ -933,7 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try { localStorage.removeItem('selected_group_id'); } catch (_) {}
             setActiveGroup('default');
         }
-    })();
+    }
 
     function updateUserNav() {
         const onLoginView = window.location.hash === '#login';
@@ -3246,6 +3273,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedLang = localStorage.getItem('bgg_lang') || 'de';
     (async () => {
         await loadTranslations(savedLang);
+        await verifyInitialActiveGroup();
         // Ensure the language switcher reflects the chosen default
         try {
             const ls = document.getElementById('language-switcher');
