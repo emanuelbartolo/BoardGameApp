@@ -1,10 +1,91 @@
-const {onRequest} = require("firebase-functions/v2/https");
+const {onRequest, onCall} = require("firebase-functions/v2/https");
 const {defineSecret} = require("firebase-functions/params"); // Corrected: Use defineSecret
 const logger = require("firebase-functions/logger");
 const fetch = require("node-fetch");
+const crypto = require("crypto");
+const admin = require("firebase-admin");
+
+admin.initializeApp();
+const db = admin.firestore();
 
 // Corrected: Define the OpenRouter API key as a SECRET
 const openrouterApiKey = defineSecret("OPENROUTER_API_KEY");
+
+// --- Password Hashing Utilities ---
+// Using PBKDF2 for password hashing (built into Node crypto, no extra deps)
+const HASH_ITERATIONS = 100000;
+const HASH_KEYLEN = 64;
+const HASH_DIGEST = "sha512";
+
+function hashPassword(password, salt) {
+  return new Promise((resolve, reject) => {
+    crypto.pbkdf2(password, salt, HASH_ITERATIONS, HASH_KEYLEN, HASH_DIGEST, (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(derivedKey.toString("hex"));
+    });
+  });
+}
+
+function generateSalt() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+// --- Set Password Cloud Function ---
+// Callable function: setPassword({ username, password })
+exports.setPassword = onCall(async (request) => {
+  const { username, password } = request.data;
+
+  if (!username || typeof username !== "string") {
+    throw new Error("Username is required.");
+  }
+  if (!password || typeof password !== "string" || password.length < 4) {
+    throw new Error("Password must be at least 4 characters.");
+  }
+
+  const salt = generateSalt();
+  const passwordHash = await hashPassword(password, salt);
+
+  const userRef = db.collection("users").doc(username);
+  await userRef.set({
+    passwordHash,
+    passwordSalt: salt,
+    hasPassword: true,
+  }, { merge: true });
+
+  logger.info(`Password set for user: ${username}`);
+  return { success: true };
+});
+
+// --- Validate Password Cloud Function ---
+// Callable function: validatePassword({ username, password })
+exports.validatePassword = onCall(async (request) => {
+  const { username, password } = request.data;
+
+  if (!username || typeof username !== "string") {
+    throw new Error("Username is required.");
+  }
+  if (!password || typeof password !== "string") {
+    throw new Error("Password is required.");
+  }
+
+  const userRef = db.collection("users").doc(username);
+  const userDoc = await userRef.get();
+
+  if (!userDoc.exists) {
+    return { valid: false, error: "User not found." };
+  }
+
+  const userData = userDoc.data();
+  if (!userData.hasPassword || !userData.passwordHash || !userData.passwordSalt) {
+    // User has no password set - allow login without password
+    return { valid: true, noPassword: true };
+  }
+
+  const hash = await hashPassword(password, userData.passwordSalt);
+  const valid = hash === userData.passwordHash;
+
+  return { valid };
+});
 
 exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (request, response) => {
     response.set('Access-Control-Allow-Origin', '*');

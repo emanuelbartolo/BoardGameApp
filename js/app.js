@@ -72,6 +72,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Firebase Refs ---
     const db = firebase.firestore();
+    const functions = firebase.functions();
+    // Callable Cloud Functions for password management
+    const setPasswordFn = functions.httpsCallable('setPassword');
+    const validatePasswordFn = functions.httpsCallable('validatePassword');
+    
     // Global / top-level collections that remain unchanged
     const gamesCollectionRef = db.collection('games');
     const userWishlistsCollectionRef = db.collection('user_wishlists');
@@ -943,11 +948,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateUserDisplay() {
         if (currentUser) {
-            // Compact user display: username only, reveal logout on click
+            // Compact user display: username only, reveal logout and set-password on click
             userDisplay.innerHTML = `
                 <div class="d-flex align-items-center">
                     <button id="user-toggle" class="btn btn-sm btn-link p-0"><strong>${currentUser}</strong></button>
                     <div id="user-menu" class="d-none ms-2">
+                        <button class="btn btn-sm btn-outline-primary me-1" id="set-password-button" title="Set Password">🔐</button>
                         <button class="btn btn-sm btn-outline-secondary" id="logout-button">${translations.logout_button || 'Logout'}</button>
                     </div>
                 </div>
@@ -958,6 +964,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userToggle) {
                 userToggle.addEventListener('click', (ev) => { ev.stopPropagation(); if (userMenu) userMenu.classList.toggle('d-none'); });
                 userToggle.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); userToggle.click(); } });
+            }
+            // Attach set password button handler
+            const setPasswordButton = document.getElementById('set-password-button');
+            if (setPasswordButton) {
+                setPasswordButton.addEventListener('click', () => {
+                    const modal = new bootstrap.Modal(document.getElementById('set-password-modal'));
+                    document.getElementById('set-password-input').value = '';
+                    document.getElementById('set-password-confirm').value = '';
+                    document.getElementById('set-password-status').textContent = '';
+                    modal.show();
+                });
             }
             // Show admin panel if the current user is the admin
             if (adminPanel) {
@@ -1724,20 +1741,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
 
-    // Show password field if admin username is typed
-    usernameInput.addEventListener('input', (e) => {
+    // Helper function to check if user has password and show/hide password field
+    async function checkUserPasswordStatus(username) {
         const passwordField = getElement('password-field');
-        if (passwordField) {
-            if (e.target.value.toLowerCase() === adminUser) {
+        if (!passwordField) return;
+        
+        if (!username) {
+            passwordField.classList.add('d-none');
+            return;
+        }
+
+        try {
+            const userDoc = await usersCollectionRef.doc(username).get();
+            if (userDoc.exists && userDoc.data().hasPassword === true) {
                 passwordField.classList.remove('d-none');
             } else {
                 passwordField.classList.add('d-none');
             }
+        } catch (err) {
+            console.error('Error checking user password status:', err);
+            passwordField.classList.add('d-none');
         }
+    }
+
+    // Debounce for username input to avoid too many Firestore reads
+    let usernameCheckTimeout = null;
+
+    // Show password field if user has password set
+    usernameInput.addEventListener('input', (e) => {
         // Reset dropdown if user starts typing a new name
         if (existingUsersDropdown) {
             existingUsersDropdown.value = '';
         }
+        
+        // Debounce the password check
+        clearTimeout(usernameCheckTimeout);
+        usernameCheckTimeout = setTimeout(() => {
+            checkUserPasswordStatus(e.target.value.trim());
+        }, 300);
     });
 
     // Handle dropdown selection
@@ -1745,16 +1786,10 @@ document.addEventListener('DOMContentLoaded', () => {
         existingUsersDropdown.addEventListener('change', (e) => {
             if (e.target.value) {
                 usernameInput.value = e.target.value; // Populate text input with selected name
-                const passwordField = getElement('password-field');
-                if (passwordField) {
-                    if (e.target.value.toLowerCase() === adminUser) {
-                        passwordField.classList.remove('d-none');
-                    } else {
-                        passwordField.classList.add('d-none');
-                    }
-                }
+                checkUserPasswordStatus(e.target.value);
             } else {
                 usernameInput.value = ''; // Clear text input if 'Select existing user' is chosen
+                getElement('password-field')?.classList.add('d-none');
             }
         });
     }
@@ -1773,49 +1808,56 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Admin Login
-        if (username.toLowerCase() === adminUser) {
-            const password = getElement('password-input').value;
-            if (password === 'bgg') { 
-                currentUser = adminUser;
-                localStorage.setItem('bgg_username', adminUser);
-                updateUserDisplay();
-                showView('collection');
-                await loadUserWishlist();
-                fetchAndDisplayGames();
-                // Ensure admin user is also in the users collection
-                try {
-                    const userDoc = await usersCollectionRef.doc(adminUser).get();
-                    if (!userDoc.exists) {
-                        await usersCollectionRef.doc(adminUser).set({ createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-                        fetchUsernames(); // Refresh dropdown with admin user
-                    }
-                } catch (err) {
-                    console.error('Error saving admin user to users collection:', err);
-                }
-            } else {
-                alert('Incorrect admin password.');
-            }
-            return;
-        }
+        const password = getElement('password-input').value;
+        const passwordField = getElement('password-field');
 
-        // Regular User Login
-        currentUser = username;
-        localStorage.setItem('bgg_username', username);
-        updateUserDisplay();
-        showView('collection');
-        await loadUserWishlist();
-        fetchAndDisplayGames();
-
-        // Save new user to Firebase if they don't already exist
+        // Check if user exists and has a password set
         try {
             const userDoc = await usersCollectionRef.doc(username).get();
+            const userData = userDoc.exists ? userDoc.data() : null;
+            const hasPassword = userData && userData.hasPassword === true;
+
+            // If user has a password, validate it via Cloud Function
+            if (hasPassword) {
+                if (!password) {
+                    // Show password field if not visible and prompt
+                    if (passwordField) passwordField.classList.remove('d-none');
+                    alert("This user has a password set. Please enter your password.");
+                    return;
+                }
+                
+                try {
+                    const result = await validatePasswordFn({ username, password });
+                    if (!result.data.valid) {
+                        alert('Incorrect password.');
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Error validating password:', err);
+                    alert('Could not validate password. Please try again.');
+                    return;
+                }
+            }
+
+            // Login successful
+            currentUser = username;
+            localStorage.setItem('bgg_username', username);
+            updateUserDisplay();
+            showView('collection');
+            await loadUserWishlist();
+            fetchAndDisplayGames();
+
+            // Save new user to Firebase if they don't already exist
             if (!userDoc.exists) {
-                await usersCollectionRef.doc(username).set({ createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                await usersCollectionRef.doc(username).set({ 
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    hasPassword: false
+                });
                 fetchUsernames(); // Refresh dropdown with new user
             }
         } catch (err) {
-            console.error('Error saving new user:', err);
+            console.error('Error during login:', err);
+            alert('Login failed. Please try again.');
         }
     });
 
@@ -2760,6 +2802,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Ensure polls are fetched when navigating to events view
     // This is now handled by showView function
+
+    // --- Set Password Modal Handler ---
+    const setPasswordSaveBtn = document.getElementById('set-password-save');
+    if (setPasswordSaveBtn) {
+        setPasswordSaveBtn.addEventListener('click', async () => {
+            const passwordInput = document.getElementById('set-password-input');
+            const confirmInput = document.getElementById('set-password-confirm');
+            const statusEl = document.getElementById('set-password-status');
+            
+            const password = passwordInput.value;
+            const confirm = confirmInput.value;
+            
+            // Clear password (optional)
+            if (!password && !confirm) {
+                try {
+                    // Remove password by setting hasPassword to false
+                    await usersCollectionRef.doc(currentUser).update({
+                        hasPassword: false,
+                        passwordHash: firebase.firestore.FieldValue.delete(),
+                        passwordSalt: firebase.firestore.FieldValue.delete()
+                    });
+                    statusEl.textContent = '';
+                    statusEl.classList.remove('text-danger');
+                    statusEl.classList.add('text-success');
+                    statusEl.textContent = 'Password removed!';
+                    setTimeout(() => {
+                        bootstrap.Modal.getInstance(document.getElementById('set-password-modal')).hide();
+                    }, 1000);
+                } catch (err) {
+                    console.error('Error removing password:', err);
+                    statusEl.textContent = 'Could not remove password.';
+                }
+                return;
+            }
+            
+            // Validate password
+            if (password.length < 4) {
+                statusEl.textContent = 'Password must be at least 4 characters.';
+                return;
+            }
+            
+            if (password !== confirm) {
+                statusEl.textContent = 'Passwords do not match.';
+                return;
+            }
+            
+            // Call Cloud Function to set password
+            try {
+                statusEl.textContent = 'Saving...';
+                statusEl.classList.remove('text-danger');
+                await setPasswordFn({ username: currentUser, password });
+                statusEl.classList.add('text-success');
+                statusEl.textContent = 'Password saved!';
+                setTimeout(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('set-password-modal')).hide();
+                }, 1000);
+            } catch (err) {
+                console.error('Error setting password:', err);
+                statusEl.classList.add('text-danger');
+                statusEl.textContent = 'Could not save password. Please try again.';
+            }
+        });
+    }
 
     // --- Localization Initialization ---
     const languageSwitcher = document.getElementById('language-switcher');
