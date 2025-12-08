@@ -1,5 +1,5 @@
 {
-  "title": "Spiele, Bier & Brezel 🎲🍺🥨",
+  "title": "🎲 GAME NIGHT 🎲",
   "nav_collection": "Collection",
   "nav_shortlist": "Shortlist",
   "nav_events": "Events",
@@ -74,8 +74,7 @@
   "logout_button": "Logout",
   "not_logged_in": "Not logged in",
   "no_events_yet": "No events yet.",
-  "no_polls_yet": "No polls yet."
-  ,
+  "no_polls_yet": "No polls yet.",
   "group_join_button": "Join or Select Group",
   "group_modal_title": "Join or Select Group",
   "group_modal_instruction": "Select a group you already belong to.",
@@ -116,18 +115,14 @@
   "error_loading_groups": "Error loading groups",
   "please_enter_group_code_or_select": "Please enter a group code or select a group.",
   "group_not_found": "Group not found.",
-  "could_not_join_group": "Could not join group. See console."
-  ,
+  "could_not_join_group": "Could not join group. See console.",
   "group_loading_members": "Loading members...",
   "group_no_members": "No members.",
   "group_load_members_error": "Could not load members.",
   "group_loading_groups": "Loading groups...",
-  "group_load_groups_error": "Could not load groups."
-  ,
-  "default_group_name": "Default Group"
-  ,
-  "group_label": "Group:"
-  ,
+  "group_load_groups_error": "Could not load groups.",
+  "default_group_name": "Default Group",
+  "group_label": "Group:",
   "admin_show_wishlist_toggle": "Show wishlist summary",
   "wishlist_group_show_all": "Show all",
   "group_modal_join_button": "Join",
@@ -149,7 +144,6 @@
   "change_username_help": "Changing username will migrate your wishlist and update votes. Existing username will be removed.",
   "change_username_new_label": "New username",
   "change_username_placeholder": "Enter new username",
-  "change_username_save": "Change"
-  ,
+  "change_username_save": "Change",
   "collection_label_games": "games"
 }
