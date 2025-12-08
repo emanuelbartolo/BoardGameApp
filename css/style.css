@@ -146,8 +146,8 @@ section {
 
 /* Favorite star button: compact icon-only with larger hit area */
 .favorite-toggle {
-    background: transparent;
-    border: none;
+    background: white;
+    border: 1px solid black;
     font-size: 1.1rem !important;
     padding: 6px 8px !important; /* comfortable hit area */
     line-height: 1;
@@ -252,7 +252,7 @@ section {
     vertical-align: middle;
 }
 
-@media (max-width: 360px) {
+@media (max-width: 200px) {
     .nav-tabs .nav-text { display: none; }
     .nav-tabs .nav-icon { margin-right: 0; }
     .nav-tabs .nav-link { padding: clamp(0.25rem, 0.8vw, 0.4rem) !important; }
