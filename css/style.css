@@ -155,6 +155,12 @@ section {
     color: #212529 !important;
 }
 
+/* Ensure inline wishlist summary sits below modal overlays (modals/backdrops have higher z-index). */
+#wishlist-summary {
+    position: relative;
+    z-index: 100; /* low so Bootstrap modals (z-index ~1050) appear above */
+}
+
 /* Vote button styles: default white, becomes blue when 'voted' class is present */
 .btn-vote {
     background-color: #ffffff;

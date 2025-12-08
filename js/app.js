@@ -950,9 +950,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 hasActiveGroup ? navLinks.events.parentElement.classList.remove('d-none') : navLinks.events.parentElement.classList.add('d-none');
             }
 
-            // Show admin nav only to admin and only when active group is set
+            // Show admin nav to the designated admin regardless of group membership
             if (navLinks.admin) {
-                if (currentUser === adminUser && hasActiveGroup) {
+                if (currentUser === adminUser) {
                     if (navLinks.admin.parentElement) navLinks.admin.parentElement.classList.remove('d-none');
                     navLinks.admin.classList.remove('d-none');
                 } else {
@@ -1052,8 +1052,32 @@ document.addEventListener('DOMContentLoaded', () => {
             if (adminPanel) {
                 if (currentUser === adminUser) {
                     adminPanel.classList.remove('d-none');
-                    // Load admin wishlist summary
-                    loadWishlistSummary();
+                            // Wire wishlist visibility toggle and group select
+                            try {
+                                const toggle = document.getElementById('wishlist-visible-toggle');
+                                const groupSel = document.getElementById('wishlist-group-select');
+                                const summaryEl = document.getElementById('wishlist-summary');
+                                if (toggle && summaryEl) {
+                                    // initialize unchecked (hidden)
+                                    toggle.checked = false;
+                                    toggle.addEventListener('change', async () => {
+                                        if (toggle.checked) {
+                                            summaryEl.classList.remove('d-none');
+                                            await loadWishlistSummary();
+                                        } else {
+                                            summaryEl.classList.add('d-none');
+                                        }
+                                    });
+                                }
+                                if (groupSel) {
+                                    groupSel.addEventListener('change', async () => {
+                                        // If summary visible, reload with new filter
+                                        if (document.getElementById('wishlist-summary') && !document.getElementById('wishlist-summary').classList.contains('d-none')) {
+                                            await loadWishlistSummary();
+                                        }
+                                    });
+                                }
+                            } catch (e) {}
                     // Load users for admin to manage
                     fetchAndDisplayUsers();
                     fetchAndDisplayGroups();
@@ -1180,6 +1204,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>`;
             });
             list.innerHTML = html;
+
+            // Also populate wishlist group select (used by Admin wishlist summary filter)
+            try {
+                const sel = document.getElementById('wishlist-group-select');
+                if (sel) {
+                    // Preserve current selection if possible
+                    const current = sel.value || 'all';
+                    sel.innerHTML = '<option value="all">Show all</option>';
+                    snap.forEach(doc => {
+                        const g = doc.data() || {};
+                        const name = escapeHtml(g.name || doc.id);
+                        const opt = document.createElement('option');
+                        opt.value = doc.id;
+                        opt.textContent = name;
+                        sel.appendChild(opt);
+                    });
+                    // restore selection if still present
+                    try { sel.value = current; } catch (_) {}
+                }
+            } catch (e) {}
 
             // Attach event handlers
             list.querySelectorAll('.delete-group-btn').forEach(btn => {
@@ -1562,15 +1606,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Admin: load wishlist summary (counts per game with user details and game cards)
     async function loadWishlistSummary() {
-        const summaryDiv = document.getElementById('wishlist-summary');
+        const summaryDiv = document.getElementById('wishlist-summary-modal-body') || document.getElementById('wishlist-summary');
+        const isModal = summaryDiv && summaryDiv.id === 'wishlist-summary-modal-body';
         summaryDiv.innerHTML = '<p class="text-muted">Loading wishlist summary...</p>';
         try {
             const snap = await userWishlistsCollectionRef.get();
             const counts = {}; // { bggId: count }
             const usersByGame = {}; // { bggId: [username1, username2, ...] }
-            
+
+            // Determine if we should limit counts to a specific group's members.
+            const wishlistGroupSelect = document.getElementById('wishlist-group-select');
+            const selectedGroupForFilter = wishlistGroupSelect ? wishlistGroupSelect.value : 'all';
+            let memberSet = null; // Set of usernames to include (null => include all)
+            if (selectedGroupForFilter && selectedGroupForFilter !== 'all') {
+                try {
+                    memberSet = new Set();
+                    const membersSnap = await db.collection('groups').doc(selectedGroupForFilter).collection('members').get();
+                    membersSnap.forEach(md => memberSet.add(md.id));
+                } catch (e) {
+                    console.warn('Could not load members for wishlist-group-select filter:', e);
+                    memberSet = null; // fallback to including all if members can't be loaded
+                }
+            }
+
             snap.forEach(doc => {
                 const username = doc.id;
+                // If a memberSet exists, only include wishlists from those usernames
+                if (memberSet && !memberSet.has(username)) return;
                 const favs = doc.data().favorites || [];
                 favs.forEach(id => {
                     counts[id] = (counts[id] || 0) + 1;
@@ -1585,20 +1647,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            let html = '<h5>Wishlist Summary</h5><div class="row" id="wishlist-summary-games">';
+            // Show a header only when rendering inline; modal already has a title.
+            let html = '';
+            if (!isModal) html += '<h5>Wishlist Summary</h5>';
+
+            // Determine which group should be used for shortlist actions.
+            // The admin `#wishlist-group-select` controls this. If it's set to "all",
+            // we fall back to the current `activeGroupId`. If that fallback is missing,
+            // no shortlist buttons will be shown (per request).
+            const selectedGroup = selectedGroupForFilter;
+            let targetGroupId = null;
+            if (selectedGroup === 'all') {
+                targetGroupId = (activeGroupId && activeGroupId !== 'default') ? activeGroupId : null;
+            } else {
+                targetGroupId = selectedGroup;
+            }
+
+            // If a concrete target group exists, show its name so the admin knows
+            // which group's shortlist is being referenced. Otherwise remain silent
+            // (no active-group warning or 'Choose Group' buttons).
+            let currentGroupName = null;
+            if (targetGroupId) {
+                try {
+                    const gdoc = await db.collection('groups').doc(targetGroupId).get();
+                    if (gdoc.exists) currentGroupName = (gdoc.data() && gdoc.data().name) ? gdoc.data().name : targetGroupId;
+                } catch (e) { /* ignore */ }
+            }
+            if (currentGroupName) {
+                html += `<div class="mb-2"><strong>Target group:</strong> ${escapeHtml(currentGroupName)}</div>`;
+            }
+
+            html += '<div class="row" id="wishlist-summary-games">';
             for (const [bggId, count] of entries) {
                 const gdoc = await gamesCollectionRef.doc(bggId).get();
                 if (!gdoc.exists) continue;
-                
+
                 const game = gdoc.data();
                 const users = usersByGame[bggId] ? usersByGame[bggId].join(', ') : '';
-                
-                // Check if already shortlisted
-                const shortlistDoc = await shortlistCollectionRef.doc(bggId).get();
-                const isShortlisted = shortlistDoc.exists;
-                const btnText = isShortlisted ? 'Shortlisted ✓' : 'Shortlist';
-                const btnClass = isShortlisted ? 'voted' : '';
-                
+
+                // If we have a target group, check if this game is already shortlisted there.
+                let isShortlisted = false;
+                if (targetGroupId) {
+                    try {
+                        const targetShortlistRef = db.collection('groups').doc(targetGroupId).collection('shortlist');
+                        const shortlistDoc = await targetShortlistRef.doc(bggId).get();
+                        isShortlisted = shortlistDoc ? shortlistDoc.exists : false;
+                    } catch (e) {
+                        console.warn('Could not check shortlist for target group:', e);
+                    }
+                }
+
                 html += `
                     <div class="col-12 mb-4">
                         <div class="card list-layout" data-bgg-id="${game.bggId}">
@@ -1609,9 +1707,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <div class="small text-muted mb-2">
                                         <strong>${count} wish${count>1? 'es':''}</strong> — ${users}
                                     </div>
-                                    <button class="btn btn-sm btn-vote add-to-shortlist-button wishlist-shortlist-btn ${btnClass}" data-bgg-id="${game.bggId}" aria-pressed="${isShortlisted}">
-                                        ${btnText}
-                                    </button>
+                                    ${targetGroupId ? `<button class="btn btn-sm btn-vote wishlist-shortlist-btn ${isShortlisted ? 'voted' : ''} add-to-shortlist-button" data-bgg-id="${game.bggId}" aria-pressed="${isShortlisted}">${isShortlisted ? 'Shortlisted ✓' : 'Shortlist'}</button>` : ''}
                                 </div>
                             </div>
                         </div>
@@ -2437,10 +2533,28 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', async (e) => {
         if (!e.target.classList.contains('wishlist-shortlist-btn')) return;
         if (currentUser !== adminUser) { alert('Only the admin can add to shortlist.'); return; }
-        
+
         const bggId = e.target.dataset.bggId;
+
+        // If no active group is selected, prompt the admin to choose/join a group
+        if (!activeGroupId || activeGroupId === 'default') {
+            try {
+                if (groupModal) {
+                    // Optionally set a status message inside the group modal explaining why it opened
+                    if (groupModalStatus) groupModalStatus.textContent = translations.choose_group_prompt || 'Please join or select a group to manage its shortlist.';
+                    groupModal.show();
+                } else {
+                    alert('Please select a group before modifying the shortlist.');
+                }
+            } catch (err) {
+                console.error('Could not open group modal:', err);
+                alert('Please select a group before modifying the shortlist.');
+            }
+            return;
+        }
+
         const gameRef = shortlistCollectionRef.doc(bggId);
-        
+
         try {
             const gameDoc = await gameRef.get();
             if (!gameDoc.exists) {
