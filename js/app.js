@@ -825,9 +825,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const dateObj = new Date(dateStr + 'T00:00:00');
 
             // Localized pieces
-            const weekday = dateObj.toLocaleDateString(localStorage.getItem('bgg_lang') || 'en', { weekday: 'short' });
+            const weekday = dateObj.toLocaleDateString(localStorage.getItem('bgg_lang') || 'de', { weekday: 'short' });
             const dayNum = dateObj.getDate();
-            const month = dateObj.toLocaleDateString(localStorage.getItem('bgg_lang') || 'en', { month: 'short' }).toUpperCase();
+            const month = dateObj.toLocaleDateString(localStorage.getItem('bgg_lang') || 'de', { month: 'short' }).toUpperCase();
 
             // Render clickable widget with event id so we can navigate to the Events view
             container.innerHTML = `
@@ -2360,7 +2360,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // --- Check for and display existing summary from the new collection ---
-            const lang = localStorage.getItem('bgg_lang') || 'en';
+            const lang = localStorage.getItem('bgg_lang') || 'de';
             const summaryField = `summary_${lang}`;
             const summaryDoc = await summariesCollectionRef.doc(currentlySelectedBggId).get();
             if (summaryDoc.exists && summaryDoc.data()[summaryField]) {
@@ -2414,7 +2414,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const game = gameDoc.data();
 
-        const lang = localStorage.getItem('bgg_lang') || 'en';
+        const lang = localStorage.getItem('bgg_lang') || 'de';
         const langName = lang === 'de' ? 'German' : 'English';
         const prompt = `You are a board game support bot. Provide a short, factual, and easy-to-understand summary of the board game "${game.name}". Focus on the theme and what players do mechanically in the game. Keep it to 2-3 sentences. Please reply only in ${langName}.`;
 
@@ -3080,9 +3080,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Modify updateUserDisplay to call fetchAndDisplayUsers when admin logs in
     // --- App Initialization ---
     // Load translations first, then initialize UI so translated strings are applied
-    const savedLang = localStorage.getItem('bgg_lang') || 'en';
+    const savedLang = localStorage.getItem('bgg_lang') || 'de';
     (async () => {
         await loadTranslations(savedLang);
+        // Ensure the language switcher reflects the chosen default
+        try {
+            const ls = document.getElementById('language-switcher');
+            if (ls) ls.value = savedLang;
+        } catch (e) {}
         updateUserDisplay();
         // Ensure the saved layout is applied on initial load so large/small/list render correctly
         applyLayout(currentLayout);
