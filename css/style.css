@@ -264,6 +264,34 @@ section {
     letter-spacing: 0.2px;
 }
 
+/* Collection count pill shown on the Collection header to the right */
+.collection-count-pill {
+    /* Stack the number and label vertically so the pill is two rows,
+       and match the visual spacing/size of the left control buttons. */
+    position: static;
+    align-self: center;
+    z-index: 1050;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px; /* match button height as minimum */
+    padding: 0.28rem 0.6rem; /* vertical + horizontal padding to allow two lines */
+    border-radius: 6px; /* match button corner radius */
+    border: 1px solid #ced4da; /* button-like outline */
+    background-color: #ffffff; /* same as buttons */
+    color: #ffffff;
+    font-size: 0.88rem;
+    text-align: center;
+    margin-left: 0.5rem; /* match gap between buttons (0.5rem) */
+}
+
+/* Pill internal lines: vertical stacking */
+.collection-count-pill .pill-number { display:block; font-weight:700; line-height:1; font-size:1rem; }
+.collection-count-pill .pill-label { display:block; font-size:0.66rem; opacity:0.95; line-height:1; font-weight:400; }
+
+
+
 /* Next Game Night preview styles - consolidated below with pop-out styling */
 /* --- Navigation Tab Styling: Single Row with Dynamic Sizing --- */
 .nav-tabs {
@@ -370,6 +398,13 @@ main, section {
     height: 38px;
     padding: 0;
 }
+
+/* Use the flex `gap` to control spacing between controls.
+   Reset any per-button margins (like `.me-2`) inside the compact
+   controls so the pill sits at the same distance as the other buttons. */
+#collection-controls-compact .me-2 { margin-right: 0 !important; margin-left: 0 !important; }
+#collection-controls-compact .btn { margin: 0 !important; }
+#collection-controls-compact .collection-count-pill { margin-left: 0 !important; margin-right: 0 !important; }
 #collection-controls-compact .btn svg {
     width: 18px;
     height: 18px;

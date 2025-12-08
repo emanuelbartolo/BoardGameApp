@@ -1927,6 +1927,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 gameCollectionContainer.insertAdjacentHTML('beforeend', gameCard);
             });
+            // Update collection count pill (number of games currently listed)
+            try {
+                const pill = document.getElementById('collection-count-pill');
+                if (pill) {
+                    const count = games.length;
+                    const label = (translations && translations.collection_label_games) ? translations.collection_label_games : 'games';
+                    // Two-line content: number on first line, localized label on second line
+                    pill.innerHTML = `<span class="pill-number">${count}</span><span class="pill-label">${label}</span>`;
+                    pill.classList.toggle('d-none', count === 0);
+                    // Use contextual color: secondary when not filtered, primary when filters/search applied
+                    const hasFilter = showOnlyFavorites || Boolean(searchTerm) || minPlayersFilter !== null || maxPlayersFilter !== null || maxPlaytimeFilter !== null || yearFilter !== null;
+                    pill.classList.remove('bg-secondary','bg-primary');
+                    pill.classList.add(hasFilter ? 'bg-primary' : 'bg-secondary');
+                }
+            } catch (e) { /* non-fatal */ }
         } catch (error) {
             console.error("Error fetching games from Firebase:", error);
             gameCollectionContainer.innerHTML = '<p class="text-danger">Could not fetch game collection from Firebase.</p>';

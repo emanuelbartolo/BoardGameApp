@@ -150,4 +150,6 @@
   "change_username_new_label": "New username",
   "change_username_placeholder": "Enter new username",
   "change_username_save": "Change"
+  ,
+  "collection_label_games": "games"
 }

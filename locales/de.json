@@ -149,5 +149,6 @@
   "change_username_help": "Beim Ändern des Benutzernamens wird Ihre Wunschliste migriert und Stimmen aktualisiert. Der vorhandene Benutzername wird entfernt.",
   "change_username_new_label": "Neuer Benutzername",
   "change_username_placeholder": "Neuen Benutzernamen eingeben",
-  "change_username_save": "Ändern"
+  "change_username_save": "Ändern",
+  "collection_label_games": "Spiele"
 }
