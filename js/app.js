@@ -964,7 +964,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const userToggle = document.getElementById('user-toggle');
             const userMenu = document.getElementById('user-menu');
             if (userToggle) {
-                userToggle.addEventListener('click', (ev) => { ev.stopPropagation(); if (userMenu) userMenu.classList.toggle('d-none'); });
+                // Open user options modal on click (instead of simple dropdown)
+                userToggle.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    const modalEl = document.getElementById('user-options-modal');
+                    if (modalEl) {
+                        // update title to current user
+                        document.getElementById('user-options-modal-label').textContent = `Options for ${currentUser}`;
+                        const modal = new bootstrap.Modal(modalEl);
+                        modal.show();
+                    }
+                });
                 userToggle.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); userToggle.click(); } });
             }
             // Attach set password button handler
@@ -976,6 +986,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('set-password-confirm').value = '';
                     document.getElementById('set-password-status').textContent = '';
                     modal.show();
+                });
+            }
+
+            // Wire user options modal buttons
+            const userOptSetPassword = document.getElementById('user-opt-set-password');
+            const userOptLogout = document.getElementById('user-opt-logout');
+            const userOptChangeUsername = document.getElementById('user-opt-change-username');
+            if (userOptSetPassword) {
+                userOptSetPassword.addEventListener('click', () => {
+                    // Open set-password modal for current user
+                    adminTargetUser = null;
+                    document.getElementById('set-password-modal-label').textContent = `Set Password for ${currentUser}`;
+                    document.getElementById('set-password-input').value = '';
+                    document.getElementById('set-password-confirm').value = '';
+                    document.getElementById('set-password-status').textContent = '';
+                    try { const mi = bootstrap.Modal.getInstance(document.getElementById('user-options-modal')); if (mi) mi.hide(); } catch (e) {}
+                    new bootstrap.Modal(document.getElementById('set-password-modal')).show();
+                });
+            }
+            if (userOptLogout) {
+                userOptLogout.addEventListener('click', () => {
+                    localStorage.removeItem('bgg_username');
+                    currentUser = null;
+                    updateUserDisplay();
+                    fetchUsernames();
+                    try { const mi = bootstrap.Modal.getInstance(document.getElementById('user-options-modal')); if (mi) mi.hide(); } catch (e) {}
+                    showView('login');
+                });
+            }
+            if (userOptChangeUsername) {
+                userOptChangeUsername.addEventListener('click', () => {
+                    try { const mi = bootstrap.Modal.getInstance(document.getElementById('user-options-modal')); if (mi) mi.hide(); } catch (e) {}
+                    document.getElementById('change-username-input').value = '';
+                    document.getElementById('change-username-status').textContent = '';
+                    new bootstrap.Modal(document.getElementById('change-username-modal')).show();
                 });
             }
             // Show admin panel if the current user is the admin
@@ -2803,7 +2848,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!usernameToDelete) return;
             try {
                 // Close modal
-                bootstrap.Modal.getInstance(confirmModalEl).hide();
+                try { const mi = bootstrap.Modal.getInstance(confirmModalEl); if (mi) mi.hide(); } catch (e) {}
                 // Fetch all polls BEFORE the transaction starts
                 const pollsSnapshot = await pollsCollectionRef.get();
                 await db.runTransaction(async (transaction) => {
@@ -2877,9 +2922,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     statusEl.classList.remove('text-danger');
                     statusEl.classList.add('text-success');
                     statusEl.textContent = 'Password removed!';
-                    setTimeout(() => {
-                        bootstrap.Modal.getInstance(document.getElementById('set-password-modal')).hide();
-                    }, 1000);
+                        setTimeout(() => {
+                            try { const mi = bootstrap.Modal.getInstance(document.getElementById('set-password-modal')); if (mi) mi.hide(); } catch (e) {}
+                        }, 1000);
                 } catch (err) {
                     console.error('Error removing password:', err);
                     statusEl.textContent = 'Could not remove password.';
@@ -2908,7 +2953,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusEl.classList.add('text-success');
                 statusEl.textContent = 'Password saved!';
                 setTimeout(() => {
-                    bootstrap.Modal.getInstance(document.getElementById('set-password-modal')).hide();
+                    try { const mi = bootstrap.Modal.getInstance(document.getElementById('set-password-modal')); if (mi) mi.hide(); } catch (e) {}
                     // Reset adminTargetUser and refresh list if admin set for another user
                     if (adminTargetUser) {
                         adminTargetUser = null;
@@ -2923,11 +2968,77 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Change Username handler
+    const changeUsernameSaveBtn = document.getElementById('change-username-save');
+    if (changeUsernameSaveBtn) {
+        changeUsernameSaveBtn.addEventListener('click', async () => {
+            const newName = (document.getElementById('change-username-input').value || '').trim();
+            const statusEl = document.getElementById('change-username-status');
+            if (!newName) { statusEl.textContent = 'Please enter a new username.'; return; }
+            if (newName === currentUser) { statusEl.textContent = 'That is already your username.'; return; }
+            try {
+                // Check if new username already exists
+                const newDoc = await usersCollectionRef.doc(newName).get();
+                if (newDoc.exists) { statusEl.textContent = 'Username already taken.'; return; }
+                // Fetch polls snapshot to update votes
+                const pollsSnapshot = await pollsCollectionRef.get();
+                // Fetch wishlist (if any)
+                const wishlistDoc = await userWishlistsCollectionRef.doc(currentUser).get();
+                // Run transaction to move docs and update polls
+                await db.runTransaction(async (transaction) => {
+                    // create new user doc
+                    transaction.set(usersCollectionRef.doc(newName), { createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    // move wishlist
+                    if (wishlistDoc.exists) {
+                        transaction.set(userWishlistsCollectionRef.doc(newName), wishlistDoc.data());
+                        transaction.delete(userWishlistsCollectionRef.doc(currentUser));
+                    }
+                    // update polls voters
+                    pollsSnapshot.forEach(pollDoc => {
+                        const pollRef = pollsCollectionRef.doc(pollDoc.id);
+                        const pollData = pollDoc.data();
+                        if (pollData.options) {
+                            const updatedOptions = pollData.options.map(option => ({
+                                ...option,
+                                voters: option.voters.map(v => v === currentUser ? newName : v)
+                            }));
+                            transaction.update(pollRef, { options: updatedOptions });
+                        }
+                    });
+                    // delete old user doc
+                    transaction.delete(usersCollectionRef.doc(currentUser));
+                });
+                // update local state and UI
+                localStorage.setItem('bgg_username', newName);
+                currentUser = newName;
+                updateUserDisplay();
+                fetchUsernames();
+                fetchAndDisplayUsers();
+                try { const mi = bootstrap.Modal.getInstance(document.getElementById('change-username-modal')); if (mi) mi.hide(); } catch (e) {}
+            } catch (err) {
+                console.error('Error changing username:', err);
+                statusEl.textContent = 'Could not change username.';
+            }
+        });
+    }
+
     // --- Localization Initialization ---
     const languageSwitcher = document.getElementById('language-switcher');
     if (languageSwitcher) languageSwitcher.addEventListener('change', (e) => {
         const lang = e.target.value;
         localStorage.setItem('bgg_lang', lang);
         loadTranslations(lang);
+    });
+
+    // Global modal cleanup: ensure backdrop and 'modal-open' are cleared if modals close unexpectedly
+    document.addEventListener('hidden.bs.modal', () => {
+        // Small delay to allow bootstrap to clean up; if anything remains, remove it.
+        setTimeout(() => {
+            const anyOpen = document.querySelectorAll('.modal.show').length > 0;
+            if (!anyOpen) {
+                document.body.classList.remove('modal-open');
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            }
+        }, 50);
     });
 });
