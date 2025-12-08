@@ -119,7 +119,7 @@ section {
 .layout-large-grid .game-card .favorite-toggle.active,
 .layout-large-grid .game-card .favorite-toggle.active.btn {
     background-color: #ffc107 !important;
-    border-color: #ffc107 !important;
+    border-color: #000000 !important;
     color: #212529 !important;
 }
 
@@ -740,6 +740,41 @@ html, body {
 .fixed-bottom-nav .nav-tabs {
     padding-left: 0.5rem;
     padding-right: 0.5rem;
+}
+
+/* Override: make bottom nav subtle and responsive
+   - Remove framing (border + shadow)
+   - Inactive icons/text grey, active blue
+   - Ensure SVG icons inherit `currentColor`
+   - Fast color transition for responsiveness
+*/
+.fixed-bottom-nav {
+    border-top: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+.fixed-bottom-nav .nav-link {
+    color: #6c757d !important; /* grey */
+    border: none !important;
+    background: transparent !important;
+    transition: color 0.08s linear !important;
+}
+
+.fixed-bottom-nav .nav-link.active {
+    color: #0d6efd !important; /* bootstrap blue */
+}
+
+/* Make sure SVGs use the link color */
+.fixed-bottom-nav .nav-link svg,
+.fixed-bottom-nav .nav-link .nav-icon svg {
+    fill: currentColor !important;
+}
+
+/* Remove focus ring that looks like a frame on some browsers */
+.fixed-bottom-nav .nav-link:focus {
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 
