@@ -129,6 +129,7 @@
   "default_group_name": "Default Group",
   "group_label": "Group:",
   "admin_show_wishlist_toggle": "Show wishlist summary",
+  "admin_show_login_dropdown_toggle": "Show user dropdown on login",
   "wishlist_group_show_all": "Show all",
   "group_modal_join_button": "Join",
   "set_password_modal_title": "Set Password",

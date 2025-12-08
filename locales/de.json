@@ -134,6 +134,7 @@
   "group_label": "Gruppe:"
   ,
   "admin_show_wishlist_toggle": "Wunschliste anzeigen",
+  "admin_show_login_dropdown_toggle": "Benutzer-Dropdown beim Login anzeigen",
   "wishlist_group_show_all": "Alle anzeigen",
   "group_modal_join_button": "Beitreten",
   "set_password_modal_title": "Passwort festlegen",

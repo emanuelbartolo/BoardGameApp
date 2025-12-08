@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentLayout = localStorage.getItem('bgg_layout') || 'large-grid';
     let userFavorites = []; // list of bggIds favorited by the current user
     let showOnlyFavorites = false; // whether to filter collection to only favorites
+    let showLoginDropdown = true; // whether to show the user dropdown on login
 
     // New state for search, filter, and sort
     let searchTerm = '';
@@ -84,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const userWishlistsCollectionRef = db.collection('user_wishlists');
     const usersCollectionRef = db.collection('users');
     const summariesCollectionRef = db.collection('game_summaries');
+    const configCollectionRef = db.collection('config');
 
     // Group-scoped refs: will be bound to the active group via setActiveGroup()
     let activeGroupId = localStorage.getItem('selected_group_id') || 'default';
@@ -3105,6 +3107,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Fetch global config
+    async function fetchConfig() {
+        try {
+            const doc = await configCollectionRef.doc('general').get();
+            if (doc.exists) {
+                const data = doc.data();
+                if (typeof data.showLoginDropdown !== 'undefined') {
+                    showLoginDropdown = data.showLoginDropdown;
+                }
+            }
+            
+            // Update Login UI
+            if (existingUsersDropdown) {
+                existingUsersDropdown.classList.toggle('d-none', !showLoginDropdown);
+            }
+
+            // Update Admin UI Toggle
+            const toggle = document.getElementById('login-dropdown-toggle');
+            if (toggle) {
+                toggle.checked = showLoginDropdown;
+            }
+
+        } catch (err) {
+            console.error('Error fetching config:', err);
+        }
+    }
+
+    // Admin: Toggle Login Dropdown
+    const loginDropdownToggle = document.getElementById('login-dropdown-toggle');
+    if (loginDropdownToggle) {
+        loginDropdownToggle.addEventListener('change', async (e) => {
+            const newValue = e.target.checked;
+            try {
+                await configCollectionRef.doc('general').set({ showLoginDropdown: newValue }, { merge: true });
+                showLoginDropdown = newValue;
+                // Update Login UI immediately
+                if (existingUsersDropdown) {
+                    existingUsersDropdown.classList.toggle('d-none', !showLoginDropdown);
+                }
+            } catch (err) {
+                console.error('Error updating config:', err);
+                alert('Could not update setting.');
+                // Revert toggle if failed
+                e.target.checked = !newValue;
+            }
+        });
+    }
+
     // Fetch usernames from Firebase and populate dropdown
     async function fetchUsernames() {
         console.log('Attempting to fetch usernames...');
@@ -3130,9 +3180,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 existingUsersDropdown.appendChild(option);
             });
 
-            // Always show the dropdown, but it will be empty if no non-admin users exist
-            existingUsersDropdown.classList.remove('d-none');
-            console.log('existingUsersDropdown should now be visible.');
+            // Show/Hide based on config
+            existingUsersDropdown.classList.toggle('d-none', !showLoginDropdown);
+            console.log('existingUsersDropdown visibility updated based on config.');
         } catch (err) {
             console.error('Error fetching usernames:', err);
         }
@@ -3274,6 +3324,7 @@ document.addEventListener('DOMContentLoaded', () => {
     (async () => {
         await loadTranslations(savedLang);
         await verifyInitialActiveGroup();
+        await fetchConfig();
         // Ensure the language switcher reflects the chosen default
         try {
             const ls = document.getElementById('language-switcher');
