@@ -771,6 +771,8 @@ html, body {
 .fixed-bottom-nav .nav-link svg,
 .fixed-bottom-nav .nav-link .nav-icon svg {
     fill: currentColor !important;
+    width: 28px;
+    height: 28px;
 }
 
 /* Remove focus ring that looks like a frame on some browsers */
