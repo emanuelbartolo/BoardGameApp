@@ -127,4 +127,27 @@
   "default_group_name": "Standardgruppe"
   ,
   "group_label": "Gruppe:"
+  ,
+  "admin_show_wishlist_toggle": "Wunschliste anzeigen",
+  "wishlist_group_show_all": "Alle anzeigen",
+  "group_modal_join_button": "Beitreten",
+  "set_password_modal_title": "Passwort festlegen",
+  "set_password_help": "Passwort ist optional. Sie können ein Passwort festlegen, um Ihr Konto zu sichern.",
+  "set_password_remove_help": "Um Ihr Passwort zu entfernen: Lassen Sie beide Felder leer und klicken Sie auf Speichern.",
+  "set_password_new_label": "Neues Passwort",
+  "set_password_new_placeholder": "Neues Passwort eingeben (min. 4 Zeichen)",
+  "set_password_confirm_label": "Passwort bestätigen",
+  "set_password_confirm_placeholder": "Passwort bestätigen",
+  "set_password_save_button": "Passwort speichern",
+  "confirm_delete_title": "Löschen bestätigen",
+  "confirm_delete_yes": "Löschen",
+  "user_options_title": "Benutzeroptionen",
+  "user_opt_set_password": "Passwort setzen/zurücksetzen",
+  "user_opt_change_username": "Benutzernamen ändern",
+  "user_opt_logout": "Abmelden",
+  "change_username_title": "Benutzernamen ändern",
+  "change_username_help": "Beim Ändern des Benutzernamens wird Ihre Wunschliste migriert und Stimmen aktualisiert. Der vorhandene Benutzername wird entfernt.",
+  "change_username_new_label": "Neuer Benutzername",
+  "change_username_placeholder": "Neuen Benutzernamen eingeben",
+  "change_username_save": "Ändern"
 }

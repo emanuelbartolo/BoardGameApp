@@ -308,7 +308,9 @@ section {
 #collection-controls-fixed {
     position: fixed;
     /* Fixed below the header. JS keeps --header-height up to date. */
-    top: var(--header-height, 56px); /* default fallback 56px */
+    /* Use a larger fallback to avoid overlapping the header/banner on initial load
+       before JavaScript sets the exact header height. */
+    top: var(--header-height, 88px); /* default fallback 88px */
     left: 0;
     right: 0;
     z-index: 1040; /* High z-index to stay on top */

@@ -127,4 +127,27 @@
   "default_group_name": "Default Group"
   ,
   "group_label": "Group:"
+  ,
+  "admin_show_wishlist_toggle": "Show wishlist summary",
+  "wishlist_group_show_all": "Show all",
+  "group_modal_join_button": "Join",
+  "set_password_modal_title": "Set Password",
+  "set_password_help": "Password is optional. You can set a password to secure your account.",
+  "set_password_remove_help": "To remove your password: Leave both fields empty and click Save.",
+  "set_password_new_label": "New Password",
+  "set_password_new_placeholder": "Enter new password (min 4 chars)",
+  "set_password_confirm_label": "Confirm Password",
+  "set_password_confirm_placeholder": "Confirm password",
+  "set_password_save_button": "Save Password",
+  "confirm_delete_title": "Confirm Delete",
+  "confirm_delete_yes": "Delete",
+  "user_options_title": "User Options",
+  "user_opt_set_password": "Set/Reset Password",
+  "user_opt_change_username": "Change Username",
+  "user_opt_logout": "Logout",
+  "change_username_title": "Change Username",
+  "change_username_help": "Changing username will migrate your wishlist and update votes. Existing username will be removed.",
+  "change_username_new_label": "New username",
+  "change_username_placeholder": "Enter new username",
+  "change_username_save": "Change"
 }
