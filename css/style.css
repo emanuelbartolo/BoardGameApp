@@ -749,9 +749,15 @@ html, body {
    - Fast color transition for responsiveness
 */
 .fixed-bottom-nav {
+    /* Remove visible frame but keep a solid background so content is not visible underneath */
     border-top: none !important;
     box-shadow: none !important;
-    background: transparent !important;
+    background: #ffffff !important; /* opaque background to fully cover content behind */
+    bottom: 0 !important; /* sit flush to the bottom of the viewport on Android */
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
 }
 
 .fixed-bottom-nav .nav-link {
