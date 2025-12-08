@@ -720,8 +720,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 header.classList.remove('shrunk');
             }
-            // Update sizing after class change
-            setTimeout(updateHeaderSizing, 250);
+            // Update sizing immediately after class change
+            updateHeaderSizing();
         } catch (err) {
             console.error('Error in updateHeaderShrink:', err);
         }

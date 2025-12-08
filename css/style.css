@@ -2,16 +2,12 @@
 body {
     /* Body padding-top is managed at runtime to match the header height. */
     /* padding-top: 0; - Removed for App Shell */
+    padding-bottom: calc(var(--bottom-nav-height, 64px) + 0.75rem);
 }
 section {
     margin-bottom: 2rem;
 }
-.game-card {
-    cursor: pointer;
-}
-.game-card:hover {
-    background-color: #f8f9fa;
-}
+
 .game-card .card-img-top {
     width: 100%; /* Let the image fill the card's width */
     aspect-ratio: 1 / 1; /* Enforce a square aspect ratio */
@@ -226,21 +222,7 @@ section {
     letter-spacing: 0.2px;
 }
 
-/* Next Game Night preview styles */
-.next-game-night {
-    align-items: center;
-}
-.next-game-calendar {
-    width: 64px;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    padding: 6px 4px;
-    background: #fff;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-}
-.next-game-calendar .ngn-weekday {
-    font-size: 0.8rem;
-
+/* Next Game Night preview styles - consolidated below with pop-out styling */
 /* --- Navigation Tab Styling: Single Row with Dynamic Sizing --- */
 .nav-tabs {
     display: flex !important;
@@ -266,10 +248,11 @@ section {
     margin-right: 0.25rem;
 }
 .nav-tabs .nav-text {
-    display: inline;
+    display: inline-block;
+    vertical-align: middle;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 360px) {
     .nav-tabs .nav-text { display: none; }
     .nav-tabs .nav-icon { margin-right: 0; }
     .nav-tabs .nav-link { padding: clamp(0.25rem, 0.8vw, 0.4rem) !important; }
@@ -277,6 +260,7 @@ section {
 
 #collection-view {
     padding-top: 0;
+    overflow: visible !important;
 }
 
 #collection-controls-fixed {
@@ -293,7 +277,6 @@ section {
     min-height: 50px;
     width: 100%;
     box-sizing: border-box;
-    will-change: top, transform; /* Performance optimization */
     display: none; /* Hidden by default, JavaScript will control visibility */
 }
 
@@ -330,11 +313,6 @@ main, section {
     -webkit-tap-highlight-color: rgba(0,0,0,0.06);
 }
 
-#game-collection {
-    margin-top: 0;
-    padding-top: 0;
-}
-
 #collection-controls-compact {
     display: flex;
     align-items: center;
@@ -369,25 +347,6 @@ main, section {
 
 /* Ensure the expanded row appears below the compact icons and uses full width */
 #collection-controls-expanded { margin-top: 6px; }
-    color: #6c757d;
-}
-.next-game-calendar .ngn-day {
-    font-size: 1.4rem;
-    font-weight: 700;
-    line-height: 1;
-}
-.next-game-calendar .ngn-month {
-    font-size: 0.75rem;
-    color: #6c757d;
-}
-.next-game-details .fw-bold {
-    font-size: 0.95rem;
-}
-
-/* When the widget sits inline with the H2, reduce its vertical spacing */
-.next-game-night { margin-left: 8px; }
-.next-game-night .next-game-details { display: inline-block; vertical-align: middle; }
-.next-game-calendar { display: inline-block; vertical-align: middle; }
 
 /* Pop-out styling for Next Game Night widget */
 .next-game-night {
@@ -538,17 +497,10 @@ main, section {
     /* top: 0; left: 0; right: 0; - Removed */
     z-index: 1050;
     background: #ffffff;
-    transition: all 240ms ease;
     box-shadow: 0 2px 6px rgba(0,0,0,0.04);
     width: 100%;
     /* Ensure header doesn't overlap sticky controls when scrolling starts */
     margin-bottom: 0; 
-}
-.site-header .top-strip {
-    transition: padding 240ms ease, height 240ms ease;
-}
-.site-header .app-banner {
-    transition: padding 240ms ease, transform 240ms ease;
 }
 .site-header.shrunk {
     --header-height: 56px; /* smaller header when scrolled */
@@ -645,30 +597,29 @@ main, section {
 }
 
 
-/* Fixed bottom navigation - pinned to viewport and reserves body space */
+/* Fixed bottom navigation - pinned to viewport */
 .fixed-bottom-nav {
     position: fixed !important;
-    bottom: 0;
-    left: 0;
-    width: 100%;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
     z-index: 1040;
-    background: rgba(255,255,255,0.98);
-    border-top: 1px solid rgba(0,0,0,0.08);
-    box-shadow: 0 -6px 16px rgba(0,0,0,0.06);
+    background: #ffffff !important; /* opaque background to fully cover content behind */
+    border-top: none !important;
+    box-shadow: none !important;
     padding: 0.25rem 0;
-    margin: 0 !important; /* override any vertical margins */
+    margin: 0 !important;
+    box-sizing: border-box !important;
 }
 
 .fixed-bottom-nav .nav-tabs {
     display: flex !important;
     margin: 0;
     border-bottom: none;
-    justify-content: space-between; /* distribute items evenly */
-}
-
-/* Reserve space at the bottom of the page so content isn't hidden under the fixed nav */
-body {
-    padding-bottom: calc(var(--bottom-nav-height, 64px) + 0.75rem);
+    justify-content: space-between;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
 }
 
 @media (min-width: 768px) {
@@ -676,11 +627,7 @@ body {
     :root { --bottom-nav-height: 72px; }
 }
 
-/* Prevent horizontal scrolling on collection page: ensure grid/cards don't overflow */
-#collection-view {
-    /* overflow-x: hidden; - Removed to fix sticky positioning */
-    overflow: visible !important;
-}
+
 
 /* Ensure main and container don't trap sticky elements */
 main, .container {
@@ -688,14 +635,18 @@ main, .container {
 }
 
 #game-collection {
-    margin-left: 0; /* avoid negative row gutters causing scroll */
-    margin-right: 0;
+    margin: 0; /* avoid negative row gutters causing scroll */
+    padding-top: 0;
 }
 
 .game-card {
     box-sizing: border-box;
     max-width: 100%;
     word-wrap: break-word;
+    cursor: pointer;
+}
+.game-card:hover {
+    background-color: #f8f9fa;
 }
 
 /* Ensure images and card content cannot push the row wider than viewport */
@@ -724,41 +675,7 @@ html, body {
     overflow: visible !important;
 }
 
-/* Ensure the fixed bottom nav never forces horizontal overflow */
-.fixed-bottom-nav {
-    left: 0;
-    right: 0;
-    /* Place the nav above any safe-area and additional app offset (set by JS) */
-    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--app-bottom-offset, 8px));
-    width: 100vw; /* use viewport width to avoid scroll due to 100% + body padding */
-    box-sizing: border-box;
-    z-index: 1030;
-    background: #fff; /* Ensure background is opaque */
-    border-top: 1px solid #dee2e6; /* Add border for separation */
-}
-
-.fixed-bottom-nav .nav-tabs {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
-}
-
-/* Override: make bottom nav subtle and responsive
-   - Remove framing (border + shadow)
-   - Inactive icons/text grey, active blue
-   - Ensure SVG icons inherit `currentColor`
-   - Fast color transition for responsiveness
-*/
-.fixed-bottom-nav {
-    /* Remove visible frame but keep a solid background so content is not visible underneath */
-    border-top: none !important;
-    box-shadow: none !important;
-    background: #ffffff !important; /* opaque background to fully cover content behind */
-    bottom: 0 !important; /* sit flush to the bottom of the viewport on Android */
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-}
+/* Bottom nav link styling: inactive grey, active blue */
 
 .fixed-bottom-nav .nav-link {
     color: #6c757d !important; /* grey */
