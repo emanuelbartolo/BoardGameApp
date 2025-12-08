@@ -711,6 +711,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (viewName === 'group-edit') {
             // group-edit is opened via showGroupEdit which handles loading; nothing to do here
         }
+
+        // Ensure the top-nav Login link visibility is correct when switching views.
+        // Hide the top-nav Login link when the app is showing the login view (to avoid a duplicate)
+        // or when a user is already logged in. Otherwise show it so users can navigate to Login.
+        try {
+            if (navLinks.login && navLinks.login.parentElement) {
+                if (viewName === 'login' || currentUser) {
+                    navLinks.login.parentElement.classList.add('d-none');
+                } else {
+                    navLinks.login.parentElement.classList.remove('d-none');
+                }
+            }
+        } catch (e) { /* ignore */ }
     }
 
     // Scans the collection view for elements that extend beyond the viewport
