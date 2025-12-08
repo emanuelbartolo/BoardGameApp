@@ -40,7 +40,7 @@ section {
 
 /* --- Small Grid Layout Compact Styles --- */
 .layout-small-grid .game-card .card-body {
-    padding: 0.75rem;
+    padding: 0.5rem;
 }
 .layout-small-grid .game-card .card-title {
     font-size: 0.9rem;
@@ -273,7 +273,7 @@ section {
 }
 
 #collection-view {
-    padding-top: 0;
+    padding-top: 70px; /* Space for fixed controls bar */
     overflow: visible !important;
 }
 
