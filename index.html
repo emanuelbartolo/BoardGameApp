@@ -52,7 +52,7 @@
             <!-- Full-width banner (edge-to-edge) -->
             <div class="app-banner">
         <div class="container">
-            <a href="#shortlist" class="d-flex align-items-center text-dark text-decoration-none">
+            <a href="#collection" class="d-flex align-items-center text-dark text-decoration-none">
                 <span class="app-title fs-4 ms-2" data-i18n-key="title">Spiele, Bier & Brezel 🎲🍺🥨</span>
             </a>
         </div>
@@ -152,35 +152,25 @@
     <div id="main-scroll-container" class="flex-grow-1 overflow-auto position-relative">
         <div class="container py-3">
 
-        <!-- Group Modal (simplified list + join-code) -->
+        <!-- Group Modal (simple list + join-code input) -->
         <div class="modal fade" id="group-modal" tabindex="-1">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-sm modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" data-i18n-key="group_modal_title">Groups</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body">
-                        <p class="small text-muted" data-i18n-key="group_modal_instruction">Select a group, or join using a code below.</p>
-
+                    <div class="modal-body p-2">
                         <div id="group-list" class="list-group mb-2" role="list">
-                            <!-- populated dynamically with list items; each item shows group name and small action icons -->
-                        </div>
-                        <div id="group-join-list" class="list-group d-none"></div>
-                        <div id="group-list-empty" class="text-muted small mb-2"></div>
-
-                        <hr>
-
-                        <div class="mb-2">
-                            <label class="form-label small mb-1" data-i18n-key="group_modal_enter_code_label">Join with code</label>
-                            <div class="input-group">
-                                <input type="text" id="group-join-code" class="form-control" placeholder="Enter join code (e.g., AB12CD)" data-i18n-key="group_modal_enter_code_placeholder">
-                                <button id="group-join-submit" class="btn btn-primary" type="button" title="Join"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-in-right" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M6 3a1 1 0 0 0-1 1v3H4V4a2 2 0 0 1 2-2h7a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2v-3h1v3a1 1 0 0 0 1 1h7V4H6z"/><path fill-rule="evenodd" d="M11.146 8.354a.5.5 0 0 0 0-.708L9.793 6.293a.5.5 0 1 0-.707.707L9.793 8l-1.307 1.293a.5.5 0 0 0 .707.707l1.353-1.353z"/></svg></button>
-                            </div>
-                            <div class="form-text" data-i18n-key="group_modal_enter_code_help">Have a code? Paste it here and click Join.</div>
+                            <!-- populated dynamically with simple list items -->
                         </div>
 
-                        <div id="group-modal-status" class="text-danger small mb-2"></div>
+                        <div class="input-group">
+                            <input type="text" id="group-join-code" class="form-control" placeholder="Join code (e.g., AB12CD)">
+                            <button id="group-join-submit" class="btn btn-primary" type="button" title="Join">Join</button>
+                        </div>
+
+                        <div id="group-modal-status" class="text-danger small mt-2"></div>
                     </div>
                     <div class="modal-footer">
                         <input type="hidden" id="group-join-selected-id" value="">

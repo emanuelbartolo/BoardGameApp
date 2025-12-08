@@ -33,6 +33,27 @@ section {
     flex-grow: 1;
 }
 
+/* In list view put the title on its own row and the favorite toggle on a
+   separate row below the title for clearer spacing on narrow list items. */
+.game-card.list-layout .card-title {
+    display: block;
+}
+.game-card.list-layout .card-title .game-title-text {
+    display: block; /* force title onto its own line */
+    margin-bottom: 0.25rem;
+}
+
+/* Actions row that holds favorite + shortlist in list layout */
+.game-card.list-layout .card-actions-row {
+    margin-top: 0.15rem;
+}
+.game-card.list-layout .card-actions-row .favorite-toggle,
+.game-card.list-layout .card-actions-row .btn-vote {
+    padding: 6px 8px !important;
+    font-size: 1.05rem !important;
+}
+
+
 /* Container for image to position favorite button */
 .game-card-image-container {
     position: relative;
@@ -51,6 +72,7 @@ section {
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
+    line-clamp: 2;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     line-height: 1.1;

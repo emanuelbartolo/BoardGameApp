@@ -903,12 +903,37 @@ document.addEventListener('DOMContentLoaded', () => {
         currentLayout = layout;
     }
 
-    // Ensure we set active group refs on startup
-    try {
-        setActiveGroup(activeGroupId);
-    } catch (e) {
-        console.warn('Could not set active group on startup:', e);
-    }
+    // Ensure we set active group refs on startup — but only show a persisted
+    // active group if the current user actually belongs to it. This avoids
+    // showing an active group for newly created or non-member users when a
+    // previous selection remains in localStorage.
+    (async function verifyInitialActiveGroup() {
+        try {
+            if (currentUser && activeGroupId && activeGroupId !== 'default') {
+                const memRef = db.collection('groups').doc(activeGroupId).collection('members').doc(currentUser);
+                const memSnap = await memRef.get();
+                if (!memSnap.exists) {
+                    try { localStorage.removeItem('selected_group_id'); } catch (_) {}
+                    setActiveGroup('default');
+                } else {
+                        // If there's no logged-in user, do not restore a persisted
+                        // active group — clear it and show the default placeholder.
+                        if (!currentUser) {
+                            try { localStorage.removeItem('selected_group_id'); } catch (_) {}
+                            setActiveGroup('default');
+                        } else {
+                            setActiveGroup(activeGroupId);
+                        }
+                    }
+            } else {
+                setActiveGroup(activeGroupId);
+            }
+        } catch (e) {
+            console.warn('Could not verify initial active group membership:', e);
+            try { localStorage.removeItem('selected_group_id'); } catch (_) {}
+            setActiveGroup('default');
+        }
+    })();
 
     function updateUserNav() {
         const onLoginView = window.location.hash === '#login';
@@ -1340,6 +1365,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updateActiveGroupDisplay() {
         const el = document.getElementById('active-group-display');
         if (!el) return;
+        // If nobody is logged in, never show an active group in the header.
+        if (!currentUser) {
+            el.classList.add('d-none');
+            const gaIdEl = document.getElementById('ga-current-id');
+            if (gaIdEl) gaIdEl.textContent = '';
+            return;
+        }
         // Keep the status hidden when the active group is the default placeholder or not set.
         if (!activeGroupId || activeGroupId === 'default') {
             el.classList.add('d-none');
@@ -1388,7 +1420,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateActiveGroupVisibility() {
         const el = document.getElementById('active-group-display');
         if (!el) return;
-        if (!activeGroupId || activeGroupId === 'default') {
+        // Hide when not logged in or when activeGroup is default
+        if (!currentUser || !activeGroupId || activeGroupId === 'default') {
             el.classList.add('d-none');
         } else {
             el.classList.remove('d-none');
@@ -1761,7 +1794,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 `;
-                } else {
+                } else if (currentLayout === 'list') {
                     gameCard = `
                     <div class="${colClass} mb-4">
                         <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
@@ -1769,7 +1802,25 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <img src="${game.image}" loading="lazy" class="card-img-top" alt="${game.name}">
                             </div>
                             <div class="card-body">
-                                <h5 class="card-title"><span class="game-title-text">${game.name}</span>${favButton}</h5>
+                                <h5 class="card-title"><span class="game-title-text">${game.name}</span></h5>
+                                <div class="d-flex gap-2 card-actions-row align-items-center">
+                                    ${favButton}
+                                    ${voteButtonHTML}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                } else {
+                    // large-grid (default) - keep favorite inline to the right of the title
+                    gameCard = `
+                    <div class="${colClass} mb-4">
+                        <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
+                            <div class="game-card-image-container">
+                                <img src="${game.image}" loading="lazy" class="card-img-top" alt="${game.name}">
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title d-flex align-items-center justify-content-between"><span class="game-title-text">${game.name}</span>${favButton}</h5>
                                 <div class="d-flex gap-2">
                                     ${voteButtonHTML}
                                 </div>
@@ -1889,6 +1940,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // Login successful
             currentUser = username;
             localStorage.setItem('bgg_username', username);
+            // Ensure the currently selected active group (from localStorage) is one
+            // the user actually belongs to. New users or users who aren't members
+            // should not see an active group selected.
+            try {
+                if (activeGroupId && activeGroupId !== 'default') {
+                    const memRef = db.collection('groups').doc(activeGroupId).collection('members').doc(username);
+                    const memSnap = await memRef.get();
+                    if (!memSnap.exists) {
+                        try { localStorage.removeItem('selected_group_id'); } catch (_) {}
+                        setActiveGroup('default');
+                    } else {
+                        // Re-apply the active group bindings in case they were stale
+                        setActiveGroup(activeGroupId);
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not verify active group membership on login:', e);
+                setActiveGroup('default');
+            }
             updateUserDisplay();
             showView('collection');
             await loadUserWishlist();
