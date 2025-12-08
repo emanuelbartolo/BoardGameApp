@@ -3126,6 +3126,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 toggle.checked = showLoginDropdown;
             }
 
+            // Ensure login label/placeholder reflect current dropdown visibility
+            try { updateLoginLabelBasedOnDropdown(); } catch (e) {}
+
         } catch (err) {
             console.error('Error fetching config:', err);
         }
@@ -3142,6 +3145,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update Login UI immediately
                 if (existingUsersDropdown) {
                     existingUsersDropdown.classList.toggle('d-none', !showLoginDropdown);
+                    try { updateLoginLabelBasedOnDropdown(); } catch (e) {}
                 }
             } catch (err) {
                 console.error('Error updating config:', err);
@@ -3180,6 +3184,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show/Hide based on config
             existingUsersDropdown.classList.toggle('d-none', !showLoginDropdown);
             console.log('existingUsersDropdown visibility updated based on config.');
+            try { updateLoginLabelBasedOnDropdown(); } catch (e) {}
         } catch (err) {
             console.error('Error fetching usernames:', err);
         }
@@ -3333,6 +3338,8 @@ document.addEventListener('DOMContentLoaded', () => {
         handleHashChange(); // Handle initial load based on URL hash
         // Populate usernames dropdown after translations are loaded
         try { await fetchUsernames(); } catch (e) {}
+        // Ensure login label is correct after we fetched config and usernames
+        try { updateLoginLabelBasedOnDropdown(); } catch (e) {}
     })();
 
     // Initial fetch for polls when events view might be active or navigated to
@@ -3467,11 +3474,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Localization Initialization ---
     const languageSwitcher = document.getElementById('language-switcher');
-    if (languageSwitcher) languageSwitcher.addEventListener('change', (e) => {
+    if (languageSwitcher) languageSwitcher.addEventListener('change', async (e) => {
         const lang = e.target.value;
         localStorage.setItem('bgg_lang', lang);
-        loadTranslations(lang);
+        await loadTranslations(lang);
+        try { updateLoginLabelBasedOnDropdown(); } catch (e) {}
     });
+
+    // Update the login label and placeholder depending on whether the
+    // existing-users dropdown is visible. When the dropdown is hidden,
+    // show the simpler prompt requested by the user.
+    function updateLoginLabelBasedOnDropdown() {
+        try {
+            const labelEl = document.querySelector('label[for="username-input"]');
+            if (!labelEl || !usernameInput) return;
+            const dropdownHidden = existingUsersDropdown ? existingUsersDropdown.classList.contains('d-none') : !showLoginDropdown;
+            if (dropdownHidden) {
+                // Use the 'simple' translations when dropdown is hidden
+                labelEl.textContent = translations.login_username_label_simple || 'enter your username';
+                usernameInput.placeholder = translations.login_username_placeholder_simple || 'Enter username';
+            } else {
+                // Restore translated text if available, otherwise fall back to defaults
+                labelEl.textContent = translations.login_username_label || 'Enter your username or select existing';
+                usernameInput.placeholder = translations.login_username_placeholder || 'Enter new username';
+            }
+        } catch (e) {
+            console.warn('Could not update login label based on dropdown visibility', e);
+        }
+    }
 
     // Global modal cleanup: ensure backdrop and 'modal-open' are cleared if modals close unexpectedly
     document.addEventListener('hidden.bs.modal', () => {

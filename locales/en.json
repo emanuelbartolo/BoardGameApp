@@ -8,6 +8,8 @@
   "login_heading": "Login",
   "login_username_label": "Enter your username or select existing",
   "login_username_placeholder": "Enter new username",
+  "login_username_label_simple": "enter your username",
+  "login_username_placeholder_simple": "Enter username",
   "login_select_user_placeholder": "--- Select existing user ---",
   "login_password_placeholder": "Enter admin password",
   "login_button": "Login",

@@ -8,6 +8,8 @@
   "login_heading": "Anmelden",
   "login_username_label": "Geben Sie Ihren Benutzernamen ein oder wählen Sie einen vorhandenen aus",
   "login_username_placeholder": "Neuen Benutzernamen eingeben",
+  "login_username_label_simple": "Geben Sie Ihren Benutzernamen ein",
+  "login_username_placeholder_simple": "Benutzernamen eingeben",
   "login_select_user_placeholder": "--- Vorhandenen Benutzer auswählen ---",
   "login_password_placeholder": "Admin-Passwort eingeben",
   "login_button": "Anmelden",
