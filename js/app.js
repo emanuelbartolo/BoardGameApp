@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- App State ---
     let currentUser = localStorage.getItem('bgg_username');
-    const adminUser = 'leli84'; // The designated admin
+    const adminUser = 'Emanuel'; // The designated admin
     let currentLayout = localStorage.getItem('bgg_layout') || 'large-grid';
     let userFavorites = []; // list of bggIds favorited by the current user
     let showOnlyFavorites = false; // whether to filter collection to only favorites
@@ -1455,27 +1455,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const doc = await groupDocRef.get();
-            const label = translations.group_label || 'Group:';
             if (doc.exists) {
                 const data = doc.data();
                 const groupName = data && data.name ? data.name : activeGroupId;
                 el.classList.remove('d-none');
-                // Display the localised label and the group name. CSS will hide
-                // the label on small screens or when the header is shrunk.
-                el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(groupName)}</strong>`;
+                // Display only the group name (no 'Group:' label).
+                el.innerHTML = `<strong>${escapeHtml(groupName)}</strong>`;
                 const gaIdEl = document.getElementById('ga-current-id');
                 if (gaIdEl) gaIdEl.textContent = groupName;
             } else {
                 el.classList.remove('d-none');
-                el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(activeGroupId)}</strong>`;
+                el.innerHTML = `<strong>${escapeHtml(activeGroupId)}</strong>`;
                 const gaIdEl = document.getElementById('ga-current-id');
                 if (gaIdEl) gaIdEl.textContent = activeGroupId;
             }
         } catch (err) {
             console.warn('Could not read group info:', err);
-            const label = translations.group_label || 'Group:';
             el.classList.remove('d-none');
-            el.innerHTML = `${escapeHtml(label)} <strong>${escapeHtml(activeGroupId)}</strong>`;
+            el.innerHTML = `<strong>${escapeHtml(activeGroupId)}</strong>`;
             const gaIdEl = document.getElementById('ga-current-id');
             if (gaIdEl) gaIdEl.textContent = activeGroupId;
         }
