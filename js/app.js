@@ -69,6 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const groupEditDelete = getElement('group-edit-delete');
 
     let editingGroupId = null;
+    // Admin target user (when admin is setting password for another user)
+    let adminTargetUser = null;
 
     // --- Firebase Refs ---
     const db = firebase.firestore();
@@ -2715,10 +2717,15 @@ document.addEventListener('DOMContentLoaded', () => {
             let html = '';
             snapshot.forEach(doc => {
                 const username = doc.id;
+                const userData = doc.data();
+                const hasPassword = userData && userData.hasPassword === true;
                 if (username === adminUser) return; // Don't allow deleting the admin user
                 html += `<div class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>${username}</span>
-                    <button class="btn btn-sm btn-outline-danger delete-user-button" data-username="${username}">Delete</button>
+                    <span>${username} ${hasPassword ? '🔐' : ''}</span>
+                    <div>
+                        <button class="btn btn-sm btn-outline-warning me-1 reset-password-button" data-username="${username}" data-has-password="${hasPassword}" title="Reset/Set Password" aria-label="Reset or set password for ${username}">${hasPassword ? '🔒' : '🔓'}</button>
+                        <button class="btn btn-sm btn-outline-danger delete-user-button" data-username="${username}">Delete</button>
+                    </div>
                 </div>`;
             });
             userListContainer.innerHTML = html;
@@ -2732,28 +2739,76 @@ document.addEventListener('DOMContentLoaded', () => {
     if (userListContainer) {
         userListContainer.addEventListener('click', async (e) => {
             console.log('User list container click event', e.target);
+            
+            // Handle Reset/Set Password button
+            if (e.target.classList.contains('reset-password-button')) {
+                if (currentUser !== adminUser) { alert('Only the admin can reset or set passwords.'); return; }
+                const usernameToReset = e.target.dataset.username;
+                const hasPassword = e.target.dataset.hasPassword === 'true';
+                if (!usernameToReset) return;
+
+                if (hasPassword) {
+                    // User has a password: confirm reset (remove password)
+                    if (!confirm(`Reset password for "${usernameToReset}"? They will be able to log in without a password.`)) return;
+                    try {
+                        await usersCollectionRef.doc(usernameToReset).update({
+                            hasPassword: false,
+                            passwordHash: firebase.firestore.FieldValue.delete(),
+                            passwordSalt: firebase.firestore.FieldValue.delete()
+                        });
+                        alert(`Password reset for "${usernameToReset}". They can now log in without a password.`);
+                        fetchAndDisplayUsers(); // Refresh the list
+                    } catch (err) {
+                        console.error('Error resetting password:', err);
+                        alert('Could not reset password.');
+                    }
+                } else {
+                    // No password: open Set Password modal to let admin set one for the user
+                    adminTargetUser = usernameToReset;
+                    const modalEl = document.getElementById('set-password-modal');
+                    if (modalEl) {
+                        document.getElementById('set-password-input').value = '';
+                        document.getElementById('set-password-confirm').value = '';
+                        document.getElementById('set-password-status').textContent = '';
+                        document.getElementById('set-password-modal-label').textContent = `Set Password for ${usernameToReset}`;
+                        const modal = new bootstrap.Modal(modalEl);
+                        modal.show();
+                    }
+                }
+                return;
+            }
+
+            // Handle Delete User (open confirm modal)
             if (!e.target.classList.contains('delete-user-button')) return;
-            console.log('Delete user button clicked');
             if (currentUser !== adminUser) { alert('Only the admin can delete users.'); return; }
-    
             const usernameToDelete = e.target.dataset.username;
-            console.log('Username to delete:', usernameToDelete);
             if (!usernameToDelete) return;
+            const confirmModalEl = document.getElementById('confirm-delete-modal');
+            if (confirmModalEl) {
+                confirmModalEl.dataset.username = usernameToDelete;
+                document.getElementById('confirm-delete-text').textContent = `Are you sure you want to delete user "${usernameToDelete}"? This will remove their wishlist and votes.`;
+                const cm = new bootstrap.Modal(confirmModalEl);
+                cm.show();
+            }
+        });
+    }
 
+    // Confirm delete modal handler
+    const confirmDeleteYesBtn = document.getElementById('confirm-delete-yes');
+    if (confirmDeleteYesBtn) {
+        confirmDeleteYesBtn.addEventListener('click', async () => {
+            const confirmModalEl = document.getElementById('confirm-delete-modal');
+            if (!confirmModalEl) return;
+            const usernameToDelete = confirmModalEl.dataset.username;
+            if (!usernameToDelete) return;
             try {
-                console.log('Initiating Firebase transaction to delete user:', usernameToDelete);
-                // Fetch all polls BEFORE the transaction starts, as transaction.get() is for documents
+                // Close modal
+                bootstrap.Modal.getInstance(confirmModalEl).hide();
+                // Fetch all polls BEFORE the transaction starts
                 const pollsSnapshot = await pollsCollectionRef.get();
-                console.log('Fetched polls snapshot before transaction.');
-
                 await db.runTransaction(async (transaction) => {
-                    // 1. Delete user's wishlist/favorites
-                    console.log('Deleting user wishlist for:', usernameToDelete);
                     const userWishlistRef = userWishlistsCollectionRef.doc(usernameToDelete);
                     transaction.delete(userWishlistRef);
-    
-                    // 2. Remove user's votes from all polls
-                    console.log('Removing user votes from polls for:', usernameToDelete);
                     pollsSnapshot.forEach(pollDoc => {
                         const pollRef = pollsCollectionRef.doc(pollDoc.id);
                         const pollData = pollDoc.data();
@@ -2765,17 +2820,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             transaction.update(pollRef, { options: updatedOptions });
                         }
                     });
-    
-                    // 3. Delete the user record itself
-                    console.log('Deleting user record for:', usernameToDelete);
                     const userRef = usersCollectionRef.doc(usernameToDelete);
                     transaction.delete(userRef);
                 });
-
-                console.log(`User '${usernameToDelete}' and all associated data deleted.`);
                 alert(`User '${usernameToDelete}' and all associated data deleted.`);
-                fetchUsernames(); // Refresh login dropdown
-                fetchAndDisplayUsers(); // Refresh admin user list
+                fetchUsernames();
+                fetchAndDisplayUsers();
             } catch (err) {
                 console.error('Error deleting user:', err);
                 alert('Could not delete user.');
@@ -2852,11 +2902,18 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 statusEl.textContent = 'Saving...';
                 statusEl.classList.remove('text-danger');
-                await setPasswordFn({ username: currentUser, password });
+                // Use adminTargetUser if admin is setting password for another user
+                const targetUser = adminTargetUser || currentUser;
+                await setPasswordFn({ username: targetUser, password });
                 statusEl.classList.add('text-success');
                 statusEl.textContent = 'Password saved!';
                 setTimeout(() => {
                     bootstrap.Modal.getInstance(document.getElementById('set-password-modal')).hide();
+                    // Reset adminTargetUser and refresh list if admin set for another user
+                    if (adminTargetUser) {
+                        adminTargetUser = null;
+                        fetchAndDisplayUsers();
+                    }
                 }, 1000);
             } catch (err) {
                 console.error('Error setting password:', err);
