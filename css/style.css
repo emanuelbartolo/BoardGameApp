@@ -399,6 +399,20 @@ main, section {
     padding: 0;
 }
 
+/* Ensure modals and backdrops sit above fixed headers/controls (fixes iOS touch overlay issues) */
+.modal-backdrop {
+    z-index: 2050 !important;
+}
+.modal {
+    z-index: 2060 !important;
+    pointer-events: auto !important;
+}
+
+/* Keep the site header below modals but above normal content */
+.site-header {
+    z-index: 1030 !important;
+}
+
 /* Use the flex `gap` to control spacing between controls.
    Reset any per-button margins (like `.me-2`) inside the compact
    controls so the pill sits at the same distance as the other buttons. */
