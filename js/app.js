@@ -2575,9 +2575,208 @@ document.addEventListener('DOMContentLoaded', () => {
             const lang = localStorage.getItem('bgg_lang') || 'de';
             const summaryField = `summary_${lang}`;
             const summaryDoc = await summariesCollectionRef.doc(currentlySelectedBggId).get();
-            if (summaryDoc.exists && summaryDoc.data()[summaryField]) {
-                const summaryContainer = document.getElementById('ai-summary-container');
-                summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summaryDoc.data()[summaryField]}</p>`;
+            // Ensure the AI summary container exists in the modal body (modal body was overwritten earlier)
+            let summaryContainer = document.getElementById('ai-summary-container');
+            const modalBody = document.getElementById('game-modal-body');
+            if (!summaryContainer && modalBody) {
+                summaryContainer = document.createElement('div');
+                summaryContainer.id = 'ai-summary-container';
+                // insert at top of body after content
+                modalBody.appendChild(summaryContainer);
+            }
+            if (summaryContainer) {
+                // Prefer the imported description from the game document when present
+                if (game && game.description && String(game.description).trim()) {
+                    summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${game.description}</p>`;
+                    // Hide AI-generation button when description exists (no need to generate)
+                    const genBtnEl = document.getElementById('ai-summary-button');
+                    if (genBtnEl) genBtnEl.classList.add('d-none');
+                } else {
+                    // Show existing saved AI summary (from separate summaries collection)
+                    if (summaryDoc.exists && summaryDoc.data()[summaryField]) {
+                        summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summaryDoc.data()[summaryField]}</p>`;
+                    } else {
+                        summaryContainer.innerHTML = `<p class="text-muted">${translations.ai_summary_missing || 'No summary available.'}</p>`;
+                    }
+                    // Ensure generate button is visible when no imported description
+                    const genBtnEl = document.getElementById('ai-summary-button');
+                    if (genBtnEl) genBtnEl.classList.remove('d-none');
+                }
+            }
+
+            // Admin inline editor controls
+            try {
+                // Ensure editor elements exist (some flows overwrite modal markup)
+                let editBtn = document.getElementById('edit-summary-button');
+                let saveBtn = document.getElementById('save-summary-button');
+                let deleteBtn = document.getElementById('delete-summary-button');
+                let aiEditor = document.getElementById('ai-summary-editor');
+                let aiText = document.getElementById('ai-summary-text');
+
+                const modalFooter = document.querySelector('#game-details-modal .modal-footer');
+                // If footer exists but buttons are missing, create them and insert before the generate button
+                if (modalFooter && !(editBtn && saveBtn && deleteBtn)) {
+                    console.debug('Admin buttons missing — creating dynamically');
+                    // Find generate button to place our buttons before it
+                    const genBtn = modalFooter.querySelector('#ai-summary-button');
+                    const container = document.createElement('div');
+                    container.className = 'd-flex gap-2 align-items-center';
+
+                    editBtn = editBtn || document.createElement('button');
+                    editBtn.id = 'edit-summary-button';
+                    editBtn.className = 'btn btn-outline-secondary d-none';
+                    editBtn.textContent = 'Edit Summary';
+
+                    saveBtn = saveBtn || document.createElement('button');
+                    saveBtn.id = 'save-summary-button';
+                    saveBtn.className = 'btn btn-primary d-none';
+                    saveBtn.textContent = 'Save Summary';
+
+                    deleteBtn = deleteBtn || document.createElement('button');
+                    deleteBtn.id = 'delete-summary-button';
+                    deleteBtn.className = 'btn btn-danger d-none';
+                    deleteBtn.textContent = 'Delete Summary';
+
+                    container.appendChild(editBtn);
+                    container.appendChild(saveBtn);
+                    container.appendChild(deleteBtn);
+                    // Insert container before generate button if present, else append to footer
+                    if (genBtn && genBtn.parentNode) {
+                        genBtn.parentNode.insertBefore(container, genBtn);
+                    } else {
+                        modalFooter.insertBefore(container, modalFooter.firstChild);
+                    }
+                }
+
+                // Ensure editor exists in modal body
+                const modalBody = document.getElementById('game-modal-body') || document.querySelector('#game-details-modal .modal-body');
+                if (modalBody && !aiEditor) {
+                    console.debug('AI editor missing — creating dynamically');
+                    aiEditor = document.createElement('div');
+                    aiEditor.id = 'ai-summary-editor';
+                    aiEditor.className = 'mt-3 d-none';
+                    aiText = document.createElement('textarea');
+                    aiText.id = 'ai-summary-text';
+                    aiText.className = 'form-control';
+                    aiText.rows = 3;
+                    aiText.placeholder = 'Enter custom summary...';
+                    const label = document.createElement('label');
+                    label.setAttribute('for', 'ai-summary-text');
+                    label.className = 'form-label';
+                    label.textContent = 'Edit AI Summary (admin)';
+                    aiEditor.appendChild(label);
+                    aiEditor.appendChild(aiText);
+                    modalBody.appendChild(aiEditor);
+                }
+
+                // Helper to show/hide admin controls depending on user
+                if (editBtn && saveBtn && deleteBtn && aiEditor && aiText) {
+                    // Determine admin status: prefer Firestore flag, fallback to configured adminUser (case-insensitive)
+                    let isAdmin = false;
+                    try {
+                        if (currentUser) {
+                            const udoc = await usersCollectionRef.doc(currentUser).get();
+                            if (udoc.exists && udoc.data() && udoc.data().isAdmin === true) {
+                                isAdmin = true;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('Could not read user document to determine admin status:', err);
+                    }
+                    if (!isAdmin && currentUser && adminUser && (String(currentUser).toLowerCase() === String(adminUser).toLowerCase())) {
+                        isAdmin = true;
+                    }
+
+                    if (isAdmin) {
+                        editBtn.classList.remove('d-none');
+                        deleteBtn.classList.remove('d-none');
+                        // ensure editor and save are hidden initially
+                        aiEditor.classList.add('d-none');
+                        saveBtn.classList.add('d-none');
+                    } else {
+                        editBtn.classList.add('d-none');
+                        saveBtn.classList.add('d-none');
+                        deleteBtn.classList.add('d-none');
+                        aiEditor.classList.add('d-none');
+                    }
+
+                    // wire handlers (use onclick to avoid duplicate listeners)
+                    editBtn.onclick = () => {
+                        // toggle editor visibility and populate with current summary/description if present
+                        const hasSummary = summaryDoc.exists && summaryDoc.data()[summaryField];
+                        const hasDescription = game && game.description && String(game.description).trim();
+                        if (hasDescription) {
+                            aiText.value = game.description || '';
+                        } else if (hasSummary) {
+                            aiText.value = summaryDoc.data()[summaryField] || '';
+                        } else {
+                            aiText.value = '';
+                        }
+                        aiEditor.classList.toggle('d-none');
+                        // show save when editor visible
+                        saveBtn.classList.toggle('d-none', aiEditor.classList.contains('d-none'));
+                    };
+
+                    saveBtn.onclick = async () => {
+                        const newText = (aiText.value || '').trim();
+                        try {
+                            const hasDescription = game && game.description && String(game.description).trim();
+                            if (hasDescription) {
+                                // Save into the games collection description field
+                                await gamesCollectionRef.doc(currentlySelectedBggId).set({ description: newText }, { merge: true });
+                                summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${newText}</p>`;
+                            } else {
+                                // Save into the summaries collection as before
+                                const data = {};
+                                data[summaryField] = newText;
+                                await summariesCollectionRef.doc(currentlySelectedBggId).set(data, { merge: true });
+                                summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${newText}</p>`;
+                            }
+                            // hide editor and save
+                            aiEditor.classList.add('d-none');
+                            saveBtn.classList.add('d-none');
+                        } catch (err) {
+                            console.error('Error saving summary/description:', err);
+                            alert('Could not save summary/description. See console for details.');
+                        }
+                    };
+
+                    deleteBtn.onclick = async () => {
+                        if (!confirm(translations.confirm_delete_ai_summary || 'Delete the AI-generated summary?')) return;
+                        try {
+                            const hasDescription = game && game.description && String(game.description).trim();
+                            if (hasDescription) {
+                                const empty = { description: firebase.firestore.FieldValue.delete() };
+                                const docRef = gamesCollectionRef.doc(currentlySelectedBggId);
+                                try {
+                                    await docRef.update(empty);
+                                } catch (updateErr) {
+                                    console.debug('Update failed when deleting description, falling back to set with merge:', updateErr);
+                                    await docRef.set(empty, { merge: true });
+                                }
+                                summaryContainer.innerHTML = `<p class="text-muted">${translations.ai_summary_missing || 'No summary available.'}</p>`;
+                            } else {
+                                const empty = {};
+                                empty[summaryField] = firebase.firestore.FieldValue.delete();
+                                const docRef = summariesCollectionRef.doc(currentlySelectedBggId);
+                                try {
+                                    await docRef.update(empty);
+                                } catch (updateErr) {
+                                    console.debug('Update failed when deleting summary, falling back to set with merge:', updateErr);
+                                    await docRef.set(empty, { merge: true });
+                                }
+                                summaryContainer.innerHTML = `<p class="text-muted">${translations.ai_summary_missing || 'No summary available.'}</p>`;
+                            }
+                            aiEditor.classList.add('d-none');
+                            saveBtn.classList.add('d-none');
+                        } catch (err) {
+                            console.error('Error deleting summary/description:', err);
+                            alert('Could not delete summary/description. See console for details.');
+                        }
+                    };
+                }
+            } catch (err) {
+                console.warn('AI summary admin controls not available:', err);
             }
             // --- End summary check ---
 
@@ -2628,7 +2827,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const lang = localStorage.getItem('bgg_lang') || 'de';
         const langName = lang === 'de' ? 'German' : 'English';
-        const prompt = `You are a board game support bot. Provide a short, factual, and easy-to-understand summary of the board game "${game.name}". Focus on the theme and what players do mechanically in the game. Keep it to 2-3 sentences. Please reply only in ${langName}.`;
+        const prompt = `You are a board game support bot. Provide a short, factual, and easy-to-understand summary of the board game "${game.name}" - BGGID: "${game.bggId}". Base your answer on actual board game data. Do not make up information. Focus on the theme and what players do mechanically in the game. Keep it to 2-3 sentences. Please reply only in ${langName}.`;
 
         try {
             const functionUrl = "https://us-central1-boardgameapp-cc741.cloudfunctions.net/generateAiSummary";

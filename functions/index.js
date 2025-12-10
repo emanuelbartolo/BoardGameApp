@@ -125,7 +125,7 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          "model": "google/gemma-3-27b-it:free",
+          "model": "tngtech/deepseek-r1t2-chimera:free",
           "messages": [{ "role": "user", "content": prompt }],
         }),
       });

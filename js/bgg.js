@@ -23,12 +23,14 @@ function parseBggXml(xmlText) {
         
         const statsNode = items[i].getElementsByTagName('stats')[0];
         const ratingNode = statsNode ? statsNode.querySelector('rating average') : null;
+        const descriptionNode = items[i].getElementsByTagName('description')[0];
 
         games.push({
             name: name,
             bggId: bggId,
             year: yearNode ? yearNode.textContent : '',
             image: imageNode ? imageNode.textContent : '',
+                description: descriptionNode ? descriptionNode.textContent : '',
             minPlayers: statsNode ? statsNode.getAttribute('minplayers') : 'N/A',
             maxPlayers: statsNode ? statsNode.getAttribute('maxplayers') : 'N/A',
             playingTime: statsNode ? statsNode.getAttribute('playingtime') : 'N/A',
