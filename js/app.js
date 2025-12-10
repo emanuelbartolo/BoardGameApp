@@ -2306,13 +2306,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Wishlist filter toggle
-    wishlistFilterButton.addEventListener('click', (e) => {
-        showOnlyFavorites = !showOnlyFavorites;
-        wishlistFilterButton.classList.toggle('active', showOnlyFavorites);
-        updateWishlistButtonLabel();
-        fetchAndDisplayGames();
-    });
+    // Wishlist filter toggle (debounced to avoid duplicate activations on touch)
+    if (wishlistFilterButton) {
+        let _lastWishlistToggleAt = 0;
+        const WISHLIST_TOGGLE_MIN_DELTA = 350; // ms
+
+        const doWishlistToggle = (ev) => {
+            const now = Date.now();
+            if (now - _lastWishlistToggleAt < WISHLIST_TOGGLE_MIN_DELTA) {
+                ev && ev.preventDefault();
+                return;
+            }
+            _lastWishlistToggleAt = now;
+            showOnlyFavorites = !showOnlyFavorites;
+            wishlistFilterButton.classList.toggle('active', showOnlyFavorites);
+            updateWishlistButtonLabel();
+            fetchAndDisplayGames();
+        };
+
+        wishlistFilterButton.addEventListener('click', (e) => doWishlistToggle(e));
+
+        // For touch devices, pointer events can be more reliable — also guarded
+        wishlistFilterButton.addEventListener('pointerup', (e) => {
+            if (e.pointerType && e.pointerType !== 'touch') return;
+            doWishlistToggle(e);
+        });
+    }
 
     // Search input
     if (searchInput) {
