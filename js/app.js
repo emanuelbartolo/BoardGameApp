@@ -579,6 +579,43 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     };
 
+    // Helper: determine whether any non-search collection filter is currently applied
+    const isFilterApplied = () => {
+        return (
+            showOnlyFavorites ||
+            minPlayersFilter !== null ||
+            maxPlayersFilter !== null ||
+            maxPlaytimeFilter !== null ||
+            yearFilter !== null ||
+            (sortOption && sortOption !== 'name_asc')
+        );
+    };
+
+    // Update the visual active state of the filter toggle in the controls row
+    const updateFilterToggleState = () => {
+        try {
+            if (!filterToggle) return;
+            if (isFilterApplied()) {
+                filterToggle.classList.add('active');
+            } else {
+                filterToggle.classList.remove('active');
+            }
+        } catch (e) {}
+    };
+
+    // Update the search toggle visual state when there is text in the search input
+    const updateSearchToggleState = () => {
+        try {
+            if (!searchToggle) return;
+            const hasText = (searchTerm && searchTerm.trim() !== '');
+            if (hasText) {
+                searchToggle.classList.add('has-text');
+            } else {
+                searchToggle.classList.remove('has-text');
+            }
+        } catch (e) {}
+    };
+
     const updateWishlistButtonLabel = () => {
         if (!wishlistFilterButton) return;
         const baseLabel = translations.wishlist_filter_button || 'My Wishlist';
@@ -643,6 +680,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 span.textContent = translations.attend_to_vote || 'Attend to vote';
             });
         }
+        // Ensure filter and search toggles reflect active state after UI text updates
+        try { updateFilterToggleState(); } catch (e) {}
+        try { updateSearchToggleState(); } catch (e) {}
     }
     // --- End Localization ---
 
@@ -2217,9 +2257,49 @@ document.addEventListener('DOMContentLoaded', () => {
         if (toggleBtn && collapseEl) {
             const bs = bootstrap.Collapse.getOrCreateInstance(collapseEl);
             bs.show();
-            toggleBtn.classList.add('active');
+            // Only mark the toggle active when filters are actually applied
+            // (opening the panel alone should not imply an active filter)
+            updateFilterToggleState();
         }
     };
+
+    // Ensure the filter toggle button reflects the collapse state visually
+    if (filterCollapseEl && filterToggle) {
+        // When the collapse opens, add an 'open' class so CSS can style it
+        filterCollapseEl.addEventListener('show.bs.collapse', () => {
+            try { filterToggle.classList.add('open'); } catch (e) {}
+            // when the filter panel opens, ensure active state reflects any active filters
+            try { updateFilterToggleState(); } catch (e) {}
+        });
+        // Remove the 'open' class when it hides and re-evaluate filter active state
+        filterCollapseEl.addEventListener('hidden.bs.collapse', () => {
+            try { filterToggle.classList.remove('open'); } catch (e) {}
+            try { updateFilterToggleState(); } catch (e) {}
+        });
+    }
+    // Mirror the same open-state behaviour for search and sort toggles
+    if (searchCollapseEl && searchToggle) {
+        searchCollapseEl.addEventListener('show.bs.collapse', () => {
+            try { searchToggle.classList.add('open'); } catch (e) {}
+            // when search opens, ensure filter toggle remains correct
+            try { updateFilterToggleState(); } catch (e) {}
+        });
+        searchCollapseEl.addEventListener('hidden.bs.collapse', () => {
+            try { searchToggle.classList.remove('open'); } catch (e) {}
+            // when search collapses, re-evaluate filter active state (so filter remains highlighted if active)
+            try { updateFilterToggleState(); } catch (e) {}
+        });
+    }
+    if (sortCollapseEl && sortToggle) {
+        sortCollapseEl.addEventListener('show.bs.collapse', () => {
+            try { sortToggle.classList.add('open'); } catch (e) {}
+            try { updateFilterToggleState(); } catch (e) {}
+        });
+        sortCollapseEl.addEventListener('hidden.bs.collapse', () => {
+            try { sortToggle.classList.remove('open'); } catch (e) {}
+            try { updateFilterToggleState(); } catch (e) {}
+        });
+    }
 
     if (searchToggle && searchCollapseEl) {
         searchToggle.addEventListener('click', (ev) => {
@@ -2321,6 +2401,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showOnlyFavorites = !showOnlyFavorites;
             wishlistFilterButton.classList.toggle('active', showOnlyFavorites);
             updateWishlistButtonLabel();
+            updateFilterToggleState();
             fetchAndDisplayGames();
         };
 
@@ -2337,9 +2418,40 @@ document.addEventListener('DOMContentLoaded', () => {
     if (searchInput) {
         const doSearch = debounce(() => {
             searchTerm = searchInput.value.trim().toLowerCase();
+            updateSearchToggleState();
             fetchAndDisplayGames();
         }, 300);
         searchInput.addEventListener('input', doSearch);
+        // Clear button for search input
+        const clearSearchButton = getElement('clear-search-button');
+        const updateClearButtonVisibility = () => {
+            try {
+                if (!clearSearchButton) return;
+                const hasText = searchInput.value && searchInput.value.trim() !== '';
+                clearSearchButton.classList.toggle('d-none', !hasText);
+                // also toggle a class on the input-group so both input and button can be highlighted
+                const ig = searchInput.closest('.input-group');
+                if (ig) ig.classList.toggle('search-has-text', !!hasText);
+            } catch (e) {}
+        };
+
+        // initialize visibility
+        updateClearButtonVisibility();
+
+        // keep visibility in sync on input
+        searchInput.addEventListener('input', updateClearButtonVisibility);
+
+        if (clearSearchButton) {
+            clearSearchButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                try { searchInput.value = ''; } catch (er) {}
+                searchTerm = '';
+                updateSearchToggleState();
+                updateClearButtonVisibility();
+                fetchAndDisplayGames();
+                try { searchInput.focus(); } catch (er) {}
+            });
+        }
     }
 
     const parseFilterNumber = (inputEl) => {
@@ -2354,6 +2466,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!inputEl) return;
         const doFilter = debounce(() => {
             setter(parseFilterNumber(inputEl));
+            updateFilterToggleState();
             fetchAndDisplayGames();
         }, 300);
         inputEl.addEventListener('input', doFilter);
@@ -2367,11 +2480,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sortBySelect) {
         sortBySelect.addEventListener('change', () => {
             sortOption = sortBySelect.value;
+                    updateFilterToggleState();
             fetchAndDisplayGames();
         });
     }
 
-    if (clearFiltersButton) {
+            if (clearFiltersButton) {
         clearFiltersButton.addEventListener('click', () => {
             searchTerm = '';
             minPlayersFilter = null;
@@ -2391,6 +2505,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 wishlistFilterButton.classList.remove('active');
                 updateWishlistButtonLabel();
             }
+            updateFilterToggleState();
+            // clear search text state as well
+            searchTerm = '';
+            updateSearchToggleState();
             fetchAndDisplayGames();
         });
     }

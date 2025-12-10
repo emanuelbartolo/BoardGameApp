@@ -151,7 +151,7 @@ section {
 .layout-large-grid .game-card .favorite-toggle.active,
 .layout-large-grid .game-card .favorite-toggle.active.btn {
     background-color: #ffc107 !important;
-    border-color: #000000 !important;
+    border-color: #3d3d3d !important;
     color: #212529 !important;
 }
 
@@ -189,7 +189,7 @@ section {
 /* Favorite star button: compact icon-only with larger hit area */
 .favorite-toggle {
     background: white;
-    border: 1px solid black;
+    border: 1px solid #616161;
     font-size: 1.1rem !important;
     padding: 6px 8px !important; /* comfortable hit area */
     line-height: 1;
@@ -399,6 +399,99 @@ main, section {
     padding: 0;
 }
 
+/* Search input with inline left icon */
+.search-input-with-icon {
+    position: relative;
+}
+.search-input-with-icon .input-icon-left {
+    position: absolute;
+    left: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d; /* same gray as placeholders */
+    pointer-events: none; /* icon does not intercept clicks */
+}
+.search-input-with-icon .input-icon-left svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    vertical-align: middle;
+    fill: currentColor;
+}
+.search-input-with-icon .form-control {
+    padding-left: 2.6rem; /* space for the left icon */
+}
+
+/* Restore rounded corners: input left side, button right side when combined */
+.search-input-with-icon .form-control {
+    border-top-left-radius: 0.375rem;
+    border-bottom-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem; /* default full radius when not combined */
+    border-bottom-right-radius: 0.375rem;
+}
+.search-input-with-icon .btn {
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+    border-top-left-radius: 0.375rem;
+    border-bottom-left-radius: 0.375rem;
+}
+
+/* Stronger specificity to override Bootstrap input-group rules so the
+   input regains left-side rounding when the clear button is hidden. */
+.search-input-with-icon.form-control,
+.search-input-with-icon .form-control {
+    border-radius: 0.375rem !important;
+}
+
+/* When search text is present, the input-group gets `search-has-text`.
+   Remove the inner radii so the two elements visually join but keep
+   outer rounding on the left of the input and right of the button. */
+.input-group.search-has-text.search-input-with-icon > .form-control {
+    border-top-left-radius: 0.375rem !important;
+    border-bottom-left-radius: 0.375rem !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+.input-group.search-has-text.search-input-with-icon > .btn {
+    border-top-right-radius: 0.375rem !important;
+    border-bottom-right-radius: 0.375rem !important;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+/* Keep the continuous highlight effect when search has text
+   — white background with blue border and blue accents (no solid blue fill) */
+.input-group.search-has-text .form-control {
+    border-right: 0;
+    background-color: #fff; /* remain white */
+    color: inherit;
+}
+.input-group.search-has-text .btn {
+    border-left: 0;
+    background-color: #fff; /* remain white */
+    color: var(--bs-primary); /* blue text for the clear button */
+}
+.input-group.search-has-text .form-control {
+    border-top-right-radius: 0; /* remove right radius so the input and button visually join */
+    border-bottom-right-radius: 0;
+}
+.input-group.search-has-text .btn {
+    border-top-left-radius: 0; /* remove left radius on the button when joined */
+    border-bottom-left-radius: 0;
+}
+.input-group.search-has-text .form-control,
+.input-group.search-has-text .btn {
+    border-color: var(--bs-primary); /* blue border highlight */
+}
+.input-group.search-has-text .input-icon-left {
+    color: var(--bs-primary); /* make the left icon blue when text present */
+}
+.input-group.search-has-text .form-control:focus {
+    box-shadow: 0 0 0 0.15rem rgba(13,110,253,0.15); /* subtle blue focus ring */
+}
+
 /* Ensure modals and backdrops sit above fixed headers/controls (fixes iOS touch overlay issues) */
 .modal-backdrop {
     z-index: 2050 !important;
@@ -420,6 +513,78 @@ main, section {
     -webkit-tap-highlight-color: rgba(0,0,0,0.06);
     padding: 0.45rem 0.65rem;
     min-width: 48px;
+}
+
+/* When the filter panel is expanded, give the toggle a grey background and white icon
+   to match the hover/active visual state on desktop */
+#filter-toggle.open,
+#filter-toggle.open:hover,
+#filter-toggle.open:focus {
+    background-color: #6c757d !important; /* Bootstrap secondary */
+    border-color: #6c757d !important;
+    color: #ffffff !important;
+}
+
+/* Ensure .active (blue) takes precedence over .open (grey) for the filter toggle.
+   This makes the filter button show blue when an actual filter is applied even if the
+   filter panel is currently expanded (which normally applies the .open class). */
+#filter-toggle.active,
+#filter-toggle.active.open,
+#filter-toggle.open.active {
+    background-color: var(--bs-primary) !important;
+    border-color: var(--bs-primary) !important;
+    color: #ffffff !important;
+}
+
+/* Apply same expanded styling for search and sort toggles */
+#search-toggle.open,
+#search-toggle.open:hover,
+#search-toggle.open:focus,
+#sort-toggle.open,
+#sort-toggle.open:hover,
+#sort-toggle.open:focus {
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+    color: #ffffff !important;
+}
+
+/* Highlight search toggle blue when there is text in the search input */
+#search-toggle.has-text,
+#search-toggle.has-text:hover,
+#search-toggle.has-text:focus {
+    background-color: var(--bs-primary) !important;
+    border-color: var(--bs-primary) !important;
+    color: #ffffff !important;
+}
+
+/* When the search input has text, highlight the entire input-group (input + clear button)
+   so the blue styling appears continuous across both elements. */
+.input-group.search-has-text .form-control {
+    border-color: var(--bs-primary) !important;
+    box-shadow: 0 0 0 0.15rem rgba(13,110,253,0.15) !important;
+}
+.input-group.search-has-text .form-control:focus {
+    box-shadow: 0 0 0 0.25rem rgba(13,110,253,0.18) !important;
+}
+.input-group.search-has-text .btn {
+    background-color: var(--bs-primary) !important;
+    border-color: var(--bs-primary) !important;
+    color: #ffffff !important;
+}
+
+/* Make the input and clear button visually continuous when highlighted */
+.input-group.search-has-text .form-control {
+    border-right: 0 !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+.input-group.search-has-text .btn {
+    border-left: 0 !important;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Use the flex `gap` to control spacing between controls.
