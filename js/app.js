@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let maxPlaytimeFilter = null;
     let yearFilter = null;
     let sortOption = 'name_asc'; // Default sort
+    let chatbotEnabled = true; // admin-configurable: show/hide chatbot
 
     // --- DOM Elements ---
     // --- DOM Elements ---
@@ -119,6 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Expose helper so other modules (e.g. chatbot) can trigger loading the Collection view
+    try { window.loadCollection = fetchAndDisplayGames; } catch (e) { /* ignore in restricted environments */ }
     // Group-scoped refs: will be bound to the active group via setActiveGroup()
     let activeGroupId = localStorage.getItem('selected_group_id') || 'default';
     let groupDocRef = db.collection('groups').doc(activeGroupId);
@@ -1949,6 +1952,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Build array for filtering/sorting
             let games = snapshot.docs.map(doc => doc.data());
 
+            // Expose the unfiltered complete games list to other modules (chatbot may want full catalog)
+            try { window.allGamesUnfiltered = snapshot.docs.map(doc => doc.data()); } catch (e) { /* ignore */ }
+
             // Apply filters
             games = games.filter(game => {
                 // Wishlist filter
@@ -1995,6 +2001,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         return aName.localeCompare(bName);
                 }
             });
+
+            // Expose the filtered & sorted games to other modules (chatbot)
+            try { window.allGames = games; } catch (e) { /* ignore */ }
 
             // Layout classes
             let colClass = 'col-xl-2 col-lg-3 col-md-4 col-6'; // Default to large-grid (same as old small-grid)
@@ -3523,6 +3532,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (typeof data.showLoginDropdown !== 'undefined') {
                     showLoginDropdown = data.showLoginDropdown;
                 }
+                if (typeof data.chatbotEnabled !== 'undefined') {
+                    chatbotEnabled = data.chatbotEnabled;
+                }
             }
             
             // Update Login UI
@@ -3535,6 +3547,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (toggle) {
                 toggle.checked = showLoginDropdown;
             }
+
+            // Update Chatbot toggle and UI visibility
+            const chatToggle = document.getElementById('chatbot-enabled-toggle');
+            const chatbotEl = document.getElementById('chatbot-container');
+            if (chatToggle) chatToggle.checked = !!chatbotEnabled;
+            if (chatbotEl) chatbotEl.style.display = chatbotEnabled ? '' : 'none';
 
             // Ensure login label/placeholder reflect current dropdown visibility
             try { updateLoginLabelBasedOnDropdown(); } catch (e) {}
@@ -3565,6 +3583,70 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Admin: Toggle Chatbot Enabled
+    const chatbotToggleEl = document.getElementById('chatbot-enabled-toggle');
+    if (chatbotToggleEl) {
+        chatbotToggleEl.addEventListener('change', async (e) => {
+            const newValue = e.target.checked;
+            try {
+                await configCollectionRef.doc('general').set({ chatbotEnabled: newValue }, { merge: true });
+                chatbotEnabled = newValue;
+                const chatbotEl = document.getElementById('chatbot-container');
+                if (chatbotEl) chatbotEl.style.display = chatbotEnabled ? '' : 'none';
+            } catch (err) {
+                console.error('Error updating chatbot config:', err);
+                alert('Could not update setting.');
+                e.target.checked = !newValue;
+            }
+        });
+    }
+
+    // Admin: Export full collection to Firestore (JSON or XML)
+    async function exportCollectionAs(format) {
+        if (currentUser !== adminUser) { alert('Only admin can export the collection.'); return; }
+        try {
+            const snap = await gamesCollectionRef.get();
+            if (snap.empty) { alert('No games to export.'); return; }
+            const games = snap.docs.map(d => d.data());
+
+            let payload = '';
+            if (format === 'json') {
+                payload = JSON.stringify(games, null, 2);
+            } else {
+                // Build simple XML
+                const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+                payload = '<games>\n';
+                for (const g of games) {
+                    payload += '  <game>\n';
+                    payload += `    <bggId>${esc(g.bggId)}</bggId>\n`;
+                    payload += `    <name>${esc(g.name)}</name>\n`;
+                    payload += `    <minPlayers>${esc(g.minPlayers)}</minPlayers>\n`;
+                    payload += `    <maxPlayers>${esc(g.maxPlayers)}</maxPlayers>\n`;
+                    payload += `    <playingTime>${esc(g.playingTime || g.playtime)}</playingTime>\n`;
+                    payload += `    <year>${esc(g.year)}</year>\n`;
+                    payload += `    <image>${esc(g.image)}</image>\n`;
+                    payload += `    <description>${esc(g.description)}</description>\n`;
+                    payload += '  </game>\n';
+                }
+                payload += '</games>';
+            }
+
+            const ts = new Date().toISOString().replace(/[:.]/g,'-');
+            const dest = db.collection('exports').doc('collections').collection('snapshots').doc(ts);
+            await dest.set({ format, createdAt: firebase.firestore.FieldValue.serverTimestamp(), payload });
+            alert(`Export saved (${format.toUpperCase()}) as exports/collections/snapshots/${ts}`);
+        } catch (err) {
+            console.error('Export failed:', err);
+            alert('Export failed. See console for details.');
+        }
+    }
+
+    // Wire export buttons
+    const exportJsonBtn = document.getElementById('export-collection-json');
+    const exportXmlBtn = document.getElementById('export-collection-xml');
+    if (exportJsonBtn) exportJsonBtn.addEventListener('click', () => exportCollectionAs('json'));
+    if (exportXmlBtn) exportXmlBtn.addEventListener('click', () => exportCollectionAs('xml'));
 
     // Fetch usernames from Firebase and populate dropdown
     async function fetchUsernames() {

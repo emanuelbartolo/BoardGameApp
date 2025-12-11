@@ -150,3 +150,41 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
       response.status(500).send("An internal error occurred.");
     }
 });
+
+// Callable LLM helper: generateAiChat
+// Client can call via `functions.httpsCallable('generateAiChat')` to avoid CORS issues.
+exports.generateAiChat = onCall(async (request) => {
+  const { prompt, model } = request.data || {};
+  if (!prompt || typeof prompt !== 'string') {
+    throw new Error('Missing prompt');
+  }
+
+  const apiKey = openrouterApiKey.value();
+  if (!apiKey) {
+    throw new Error('API key not configured');
+  }
+
+  try {
+    const modelName = model ? String(model) : (process.env.OPENROUTER_MODEL || 'google/gemma-3-27b-it:free');
+    const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }] })
+    });
+
+    if (!apiResponse.ok) {
+      const errText = await apiResponse.text();
+      throw new Error(`OpenRouter error: ${apiResponse.status} ${errText}`);
+    }
+
+    const data = await apiResponse.json();
+    const summary = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content ? data.choices[0].message.content : '';
+    return { summary };
+  } catch (err) {
+    logger.error('generateAiChat error', err);
+    throw new Error('AI request failed');
+  }
+});
