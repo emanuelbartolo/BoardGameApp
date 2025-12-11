@@ -168,4 +168,20 @@
   "change_username_placeholder": "Neuen Benutzernamen eingeben",
   "change_username_save": "Ändern",
   "collection_label_games": "Spiele"
+  ,
+  "chatbot_asking": "Frage die KI…",
+  "chatbot_welcome": "Hallo! Wie kann ich dir helfen?",
+  "chatbot_error_prefix": "Fehler:",
+  "chatbot_export_snapshot_json_list": "Export-Snapshot (JSON) - Liste der Spielnamen:",
+  "chatbot_export_snapshot_json_full": "Export-Snapshot (JSON) - vollständige Nutzlast:",
+  "chatbot_export_snapshot_json_parse_failed": "Export-Snapshot (JSON, Parsen fehlgeschlagen):",
+  "chatbot_export_snapshot_xml_list": "Export-Snapshot (XML) - Liste der Spielnamen:",
+  "chatbot_export_snapshot_xml_full": "Export-Snapshot (XML) - vollständige Nutzlast:",
+  "chatbot_export_truncated": "...[Ausgabe abgeschnitten]...",
+  "chatbot_instruction_suffix": "Antworte kurz (etwa 3 Sätze). ERFINDEN SIE KEINE Fakten. Kein Markdown. Gib fundierte Empfehlungen oder stelle eine kurze klärende Frage.",
+  "chatbot_enforce_en": "Respond ONLY in English. Do NOT use German or any other language.\n\nDeutsch: Antworte AUSSCHLIESSLICH auf Englisch.",
+  "chatbot_enforce_de": "Respond ONLY in German. Do NOT use English or any other language.\n\nDeutsch: Antworte AUSSCHLIESSLICH auf Deutsch. Verwende kein Englisch."
+  ,
+  "chatbot_panel_label": "Game finder chat",
+  "chatbot_send_button": "Frage"
 }
