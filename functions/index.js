@@ -151,12 +151,25 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
     }
 });
 
-// Callable LLM helper: generateAiChat
-// Client can call via `functions.httpsCallable('generateAiChat')` to avoid CORS issues.
-exports.generateAiChat = onCall(async (request) => {
-  const { prompt, model } = request.data || {};
-  if (!prompt || typeof prompt !== 'string') {
-    throw new Error('Missing prompt');
+// New callable chat function with history support: generateAiChatV2
+// Accepts { messages: [{role,content}, ...], conversationId?, model? }
+// Persists messages under ai_chats/{conversationId}/messages and returns { summary, conversationId }
+// Ensure the OpenRouter secret is available to this callable function
+exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey] }, async (request) => {
+  const data = request.data || {};
+  const incoming = Array.isArray(data.messages) ? data.messages
+                    : (data.prompt ? [{ role: 'user', content: String(data.prompt) }] : null);
+  const providedConvoId = data.conversationId ? String(data.conversationId) : null;
+  const modelName = data.model ? String(data.model) : (process.env.OPENROUTER_MODEL || 'google/gemma-3-27b-it:free');
+
+  if (!incoming || !incoming.length) {
+    throw new Error('Missing messages or prompt');
+  }
+
+  // Basic size guard
+  const totalLength = incoming.reduce((acc, m) => acc + (m && m.content ? String(m.content).length : 0), 0);
+  if (totalLength > 300000) {
+    throw new Error('Message payload too large');
   }
 
   const apiKey = openrouterApiKey.value();
@@ -164,27 +177,64 @@ exports.generateAiChat = onCall(async (request) => {
     throw new Error('API key not configured');
   }
 
+  const normalized = incoming.map(m => ({ role: (m.role || 'user'), content: String(m.content || '') }));
+
+  // determine conversation id (create new if needed)
+  let conversationId = providedConvoId;
+  if (!conversationId) conversationId = crypto.randomBytes(10).toString('hex');
+
+  const chatCol = db.collection('ai_chats').doc(conversationId).collection('messages');
+
   try {
-    const modelName = model ? String(model) : (process.env.OPENROUTER_MODEL || 'google/gemma-3-27b-it:free');
+    // Persist incoming messages (batched)
+    const batch = db.batch();
+    normalized.forEach((m, idx) => {
+      const docRef = chatCol.doc(); // auto ID
+      batch.set(docRef, {
+        role: m.role,
+        content: m.content,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        meta: { fromClient: true, index: idx }
+      });
+    });
+    await batch.commit();
+
+    // Forward full messages to OpenRouter
     const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }] })
+      body: JSON.stringify({ model: modelName, messages: normalized })
     });
 
     if (!apiResponse.ok) {
       const errText = await apiResponse.text();
-      throw new Error(`OpenRouter error: ${apiResponse.status} ${errText}`);
+      logger.error('OpenRouter error', apiResponse.status, errText);
+      // Return a structured error instead of throwing to make debugging easier for clients
+      return { error: 'OpenRouter API error', details: `status:${apiResponse.status} body:${errText}` };
     }
 
-    const data = await apiResponse.json();
-    const summary = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content ? data.choices[0].message.content : '';
-    return { summary };
+    const apiData = await apiResponse.json();
+    const assistantText = apiData.choices && apiData.choices[0] && apiData.choices[0].message && apiData.choices[0].message.content
+                          ? apiData.choices[0].message.content
+                          : '';
+
+    // Persist assistant reply
+    await chatCol.add({
+      role: 'assistant',
+      content: assistantText,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      meta: { fromServer: true }
+    });
+
+    return { summary: assistantText, conversationId };
   } catch (err) {
-    logger.error('generateAiChat error', err);
-    throw new Error('AI request failed');
+    logger.error('generateAiChatV2 error', err);
+    // Return structured error info instead of throwing so the client can display details
+    return { error: 'AI request failed', details: (err && err.message) ? String(err.message) : String(err) };
   }
 });
+
+// Note: conversation deletion is performed client-side to avoid extra callable/CORS complexity.

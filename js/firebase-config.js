@@ -25,17 +25,4 @@ try {
   alert("Could not initialize Firebase. Please contact the administrator.");
 }
 
-// If running on localhost, configure the Functions emulator so callable functions work locally
-try {
-  if (location && (location.hostname === 'localhost' || location.hostname.startsWith('127.'))) {
-    if (firebase && firebase.functions) {
-      try {
-        // default emulator port for functions is often 5001
-        firebase.functions().useEmulator('127.0.0.1', 5001);
-        console.info('Configured Firebase Functions emulator at 127.0.0.1:5001');
-      } catch (e) {
-        console.warn('Could not configure Functions emulator:', e);
-      }
-    }
-  }
-} catch (e) { /* ignore */ }
+// No local Functions emulator configuration — client will call deployed Cloud Functions.

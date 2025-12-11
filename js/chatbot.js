@@ -9,7 +9,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!toggle || !panel || !messagesEl || !inputEl || !sendBtn) return;
 
     function openPanel() { panel.classList.remove('d-none'); inputEl.focus(); }
-    function closePanel() { panel.classList.add('d-none'); }
+    async function closePanel() {
+        panel.classList.add('d-none');
+        // When the chat panel closes, delete stored conversation messages client-side via Firestore
+        try {
+            if (chatState && chatState.conversationId && typeof db !== 'undefined' && db) {
+                const convoId = chatState.conversationId;
+                const chatCol = db.collection('ai_chats').doc(convoId).collection('messages');
+                const snap = await chatCol.get();
+                const batch = db.batch();
+                snap.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                // delete parent doc if present
+                try { await db.collection('ai_chats').doc(convoId).delete(); } catch (e) { /* ignore */ }
+            }
+        } catch (e) {
+            console.warn('Could not delete conversation on close (client):', e);
+        }
+        // Clear local state
+        chatState.conversationId = null;
+        chatState.messages = [ { role: 'system', content: chatState.messages && chatState.messages[0] ? chatState.messages[0].content : 'You are a game enthusiast trying to help the user choose a game to play. NEVER make things up. Respond friendly with recommendations and feel free to ask questions back. Keep your replies short - around 3 sentences. No markdown.' } ];
+        try { localStorage.removeItem('chatbot_conversation_id'); localStorage.removeItem('chatbot_messages'); } catch (_) {}
+    }
 
     toggle.addEventListener('click', () => {
         if (panel.classList.contains('d-none')) openPanel(); else closePanel();
@@ -38,230 +59,153 @@ document.addEventListener('DOMContentLoaded', () => {
         messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
-    // Wait for window.allGames to be populated by app.js
-    function waitForGames(timeoutMs = 5000) {
-        return new Promise((resolve) => {
-            if (window.allGamesUnfiltered && window.allGamesUnfiltered.length) return resolve(window.allGamesUnfiltered);
-            if (window.allGames && window.allGames.length) return resolve(window.allGames);
-            const start = Date.now();
-            const iv = setInterval(() => {
-                if (window.allGamesUnfiltered && window.allGamesUnfiltered.length) {
-                    clearInterval(iv); resolve(window.allGamesUnfiltered);
-                } else if (window.allGames && window.allGames.length) {
-                    clearInterval(iv); resolve(window.allGames);
-                } else if (Date.now() - start > timeoutMs) {
-                    clearInterval(iv); resolve(window.allGamesUnfiltered || window.allGames || []);
-                }
-            }, 200);
-        });
-    }
+    // Minimal chat-only client: scoring/matching removed.
+    // The chatbot sends the user's raw input to the LLM (generateAiChatV2) and displays the assistant reply.
 
-    function parseQuery(q) {
-        const res = { raw: q, tokens: [], players: null, maxPlaytime: null, cooperative: false };
-        const s = q.toLowerCase();
-        // players ranges
-        const rangeMatch = s.match(/(\d+)\s*-\s*(\d+)\s*(players?)?/);
-        if (rangeMatch) {
-            res.players = { min: parseInt(rangeMatch[1],10), max: parseInt(rangeMatch[2],10) };
-        } else {
-            const singleMatch = s.match(/(\d+)\s*(players?|p)\b/);
-            if (singleMatch) {
-                const n = parseInt(singleMatch[1],10);
-                res.players = { min: n, max: n };
-            }
+    // session chat state (keeps small history for this browser tab)
+    let chatState = {
+        conversationId: localStorage.getItem('chatbot_conversation_id') || null,
+        messages: null
+    };
+    // load persisted messages if available
+    try {
+        const stored = localStorage.getItem('chatbot_messages');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length) chatState.messages = parsed;
         }
-        // playtime
-        const timeMatch = s.match(/(?:<|less than|under)\s*(\d+)\s*(min|minutes)?/);
-        if (timeMatch) res.maxPlaytime = parseInt(timeMatch[1],10);
-        else {
-            const timeMatch2 = s.match(/(\d+)\s*(min|minutes)\b/);
-            if (timeMatch2) res.maxPlaytime = parseInt(timeMatch2[1],10);
-        }
-        if (s.includes('coop') || s.includes('co-op') || s.includes('cooperative')) res.cooperative = true;
-
-        // tokens: strip common stopwords
-        const cleaned = s.replace(/[<>(),.!?;:\/\\]/g,' ').replace(/\s+/g,' ').trim();
-        const stop = new Set(['for','the','a','an','and','or','with','to','in','of','i','like','want','find','show']);
-        cleaned.split(' ').forEach(t => { if (t && !stop.has(t)) res.tokens.push(t); });
-        return res;
+    } catch (e) { /* ignore */ }
+    if (!chatState.messages) {
+        chatState.messages = [
+            { role: 'system', content: 'You are a game enthusiast trying to help the user choose a game to play. NEVER make things up. Respond friendly with recommendations and feel free to ask questions back. Keep your replies short - around 3 sentences. No markdown.' }
+        ];
     }
 
-    // Simple scoring matcher
-    function scoreGames(queryObj, games) {
-        const scored = [];
-        const qtokens = queryObj.tokens || [];
-        const wantPlayers = queryObj.players;
-        const wantTime = queryObj.maxPlaytime;
-        const wantCoop = queryObj.cooperative;
-
-        games.forEach(g => {
-            let score = 0;
-            const text = ((g.name||'') + ' ' + (g.description||'') + ' ' + (g.year||'')).toLowerCase();
-            qtokens.forEach(t => { if (text.includes(t)) score += 2; });
-
-            // players matching
-            try {
-                const minP = g.minPlayers ? parseInt(g.minPlayers,10) : null;
-                const maxP = g.maxPlayers ? parseInt(g.maxPlayers,10) : null;
-                if (wantPlayers && minP!=null && maxP!=null) {
-                    if (wantPlayers.min >= minP && wantPlayers.max <= maxP) score += 4;
-                    else if ((wantPlayers.min <= maxP && wantPlayers.max >= minP)) score += 2; // partial overlap
-                }
-            } catch(e){}
-
-            // playtime
-            try {
-                const play = g.playingTime ? parseInt(g.playingTime,10) : (g.playtime ? parseInt(g.playtime,10) : null);
-                if (wantTime && play!=null) {
-                    if (play <= wantTime) score += 2;
-                }
-            } catch(e){}
-
-            // cooperative hint
-            if (wantCoop) {
-                const coopText = text.includes('coop') || text.includes('co-op') || text.includes('cooperative');
-                if (coopText) score += 3;
-            }
-
-            // small boost for popularity if available
-            if (g.averageRating) score += Math.min(2, (parseFloat(g.averageRating)||0)/5);
-
-            scored.push({ game: g, score });
+    // Use the existing HTTP function `generateAiSummary` (same contract as app.js)
+    function buildPromptFromMessages(messages) {
+        // Use the system message (if present) as instruction, then include the last few messages
+        const system = (messages && messages.length && messages[0].role === 'system') ? messages[0].content : '';
+        // include up to the last 6 user/assistant exchanges
+        const recent = (messages || []).slice(-12).filter(m => m.role !== 'system');
+        let body = '';
+        if (system) body += system + '\n\n';
+        recent.forEach(m => {
+            const role = m.role === 'assistant' ? 'Assistant' : 'User';
+            body += `${role}: ${m.content}\n`;
         });
-        scored.sort((a,b)=>b.score - a.score);
-        return scored;
+        body += '\nINSTRUCTIONS: Reply concisely (about 3 sentences). NEVER invent facts. No markdown. Provide grounded recommendations or ask a short clarifying question if needed.';
+        return body;
     }
 
-    async function fetchSummariesFor(ids) {
-        const db = firebase.firestore();
-        const results = {};
-        await Promise.all(ids.map(async id => {
-            try {
-                const doc = await db.collection('game_summaries').doc(String(id)).get();
-                if (doc.exists) results[id] = doc.data();
-            } catch (e) { /* ignore */ }
-        }));
-        return results;
-    }
-
-    // Try to load the exported collection JSON from Firestore (admin export)
-    async function fetchExportedCollection() {
-        try {
-            if (!(firebase && firebase.firestore)) return null;
-            const col = firebase.firestore().collection('exports').doc('collections').collection('snapshots');
-            const snap = await col.orderBy('createdAt', 'desc').limit(1).get();
-            if (snap.empty) return null;
-            const data = snap.docs[0].data();
-            if (!data || !data.format) return null;
-            if (data.format === 'json' && data.payload) {
-                try {
-                    const parsed = JSON.parse(data.payload);
-                    if (Array.isArray(parsed)) return parsed;
-                } catch (e) {
-                    console.warn('Could not parse exported JSON payload:', e);
-                    return null;
-                }
+    async function callAiChat(messages, conversationId, model) {
+        if (!(firebase && firebase.functions)) throw new Error('Firebase functions SDK not available');
+        const fn = firebase.functions().httpsCallable('generateAiChatV2');
+        const res = await fn({ messages, conversationId, model });
+        if (res && res.data) {
+            // If server returned structured error payload, throw it so UI shows it
+            if (res.data.error) {
+                const details = res.data.details ? ` — ${res.data.details}` : '';
+                throw new Error(`${res.data.error}${details}`);
             }
-            return null;
-        } catch (e) {
-            console.warn('Error fetching exported collection:', e);
-            return null;
+            if (res.data.conversationId) {
+                chatState.conversationId = res.data.conversationId;
+                try { localStorage.setItem('chatbot_conversation_id', chatState.conversationId); } catch (e) { /* ignore */ }
+            }
+            return res.data.summary || res.data.reply || '';
         }
-    }
-
-    async function callAiFunction(promptText) {
-        // Always use the single configured cloud function endpoint.
-        const url = 'https://us-central1-boardgameapp-cc741.cloudfunctions.net/generateAiSummary';
-        const resp = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: promptText })
-        });
-        if (!resp.ok) throw new Error(`Cloud Function error: ${resp.status}`);
-        const data = await resp.json().catch(async () => ({ summary: await resp.text() }));
-        if (data && data.summary) return data.summary;
-        if (typeof data === 'string') return data;
-        return '';
+        throw new Error('No data from callable function');
     }
 
     async function handleQuery(q) {
         if (!q || !q.trim()) return;
+        // show user's message
         appendMessage('user', q);
-        appendBotHtml('<div class="chatbot-result">Searching your collection…</div>');
 
-        // Prefer admin-exported JSON snapshot if available, otherwise wait for client-side lists
-        let games = await fetchExportedCollection();
-        if (!games || !games.length) {
-            games = await waitForGames(5000);
-        }
-        if (!games || games.length === 0) {
-            appendBotHtml('<div class="chatbot-result">No game data found yet. Try loading the Collection view first or export the collection from Admin.</div>');
-            return;
-        }
-
-        const parsed = parseQuery(q);
-        const scored = scoreGames(parsed, games);
-        const top = scored.filter(s=>s.score>0).slice(0,8);
-        if (top.length === 0) {
-            appendBotHtml('<div class="chatbot-result">I could not find a close match. Try different keywords like "2-4 players" or "<30 min".</div>');
-            return;
-        }
-
-        // Gather summaries/snippets to include in prompt
-        const ids = top.map(t=>t.game.bggId || t.game.id || t.game.bggid).filter(Boolean).slice(0,6);
-        const sums = await fetchSummariesFor(ids);
-
-        // Build a strict prompt in the same style as the translation flow
-        const uiLang = localStorage.getItem('bgg_lang') || 'de';
-        let prompt = `You are an enthusiastic board game recommendation assistant. Answer in simple text, no markdown. Keep the reply concise. Respond in ${uiLang === 'de' ? 'German' : 'English'}.\n\n`;
-        prompt += `User input: "${q}"\n\n`;
-        prompt += 'Collection candidates (name | players range | playtime minutes | short description):\n';
-        top.slice(0,6).forEach(t => {
-            const g = t.game;
-            const id = g.bggId || g.id || g.bggid || '';
-            const summary = (sums[id] && (sums[id].description_en || sums[id].description_de_auto || sums[id].description_de)) || g.description || '';
-            const players = (g.minPlayers||'?') + '–' + (g.maxPlayers||'?');
-            const time = g.playingTime || g.playtime || '';
-            prompt += `- ${g.name} | ${players} | ${time} | ${summary.replace(/\s+/g,' ').slice(0,300)}\n`;
-        });
-
-        prompt += `\nINSTRUCTIONS: Based on the user input and the candidate list, produce a ranked list (maximum 4 items) of recommended games. For each recommendation include: game name, one short reason why it matches the query, suggested player count, and playtime. Feel free to be chatty about the games and be friendly. Analyse the candidate list to give the best fitting recommendation based on descriptions and stats`;
-
-        // Ask the cloud function for an LLM-powered response, fallback to local if it fails
-        appendBotHtml('<div class="chatbot-result">Asking the AI for recommendations…</div>');
+        // append to conversation history and persist
+        chatState.messages.push({ role: 'user', content: String(q) });
+        try { localStorage.setItem('chatbot_messages', JSON.stringify(chatState.messages)); } catch (e) { /* ignore */ }
+        appendBotHtml('<div class="chatbot-result">Asking the AI…</div>');
         try {
-            const llmReply = await callAiFunction(prompt);
+            // Try to include latest exported collection snapshot as a system-context list
+            let exportListText = '';
+            try {
+                const snapCol = db.collection('exports').doc('collections').collection('snapshots').orderBy('createdAt','desc').limit(1);
+                const snap = await snapCol.get();
+                if (!snap.empty) {
+                    const doc = snap.docs[0];
+                    const data = doc.data() || {};
+                    const format = data.format || 'json';
+                    const payload = data.payload || '';
+                    // Provide the raw export payload to the model so it sees the full catalog.
+                    if (payload && String(payload).trim()) {
+                        if (format === 'json') {
+                            // include both a parsed list and the full payload for completeness
+                            try {
+                                const j = JSON.parse(payload);
+                                if (Array.isArray(j)) {
+                                    const names = j.map(g => g.name || g.title || '').filter(Boolean);
+                                    if (names.length) {
+                                        exportListText = 'Export snapshot (JSON) - list of game names:\n' + names.map(n => `- ${n}`).join('\n') + '\n\nFull payload:\n' + JSON.stringify(j, null, 2);
+                                    } else {
+                                        exportListText = 'Export snapshot (JSON) - full payload:\n' + JSON.stringify(j, null, 2);
+                                    }
+                                } else {
+                                    exportListText = 'Export snapshot (JSON) - full payload:\n' + JSON.stringify(j, null, 2);
+                                }
+                            } catch (e) {
+                                exportListText = 'Export snapshot (JSON, parse failed):\n' + payload;
+                            }
+                        } else {
+                            // For XML exports, attempt to extract <name> tags into a list, then include full XML
+                            try {
+                                const m = payload.match(/<name>(.*?)<\/name>/g);
+                                if (m && m.length) {
+                                    const names = m.map(s => s.replace(/<\/?.*?>/g,'').trim());
+                                    exportListText = 'Export snapshot (XML) - list of game names:\n' + names.map(n => `- ${n}`).join('\n') + '\n\nFull payload (XML):\n' + payload;
+                                } else {
+                                    exportListText = 'Export snapshot (XML) - full payload:\n' + payload;
+                                }
+                            } catch (e) {
+                                exportListText = 'Export snapshot (XML) - full payload:\n' + payload;
+                            }
+                        }
+                    }
+                }
+            } catch (e) { /* ignore export fetch errors */ }
+
+            // Build messages to send: prepend a single system message (instruction + exportListText) so it's first
+            const systemInstruction = 'You are a game enthusiast helping the user choose a game to play. ONLY use the provided catalog data below — do NOT invent games or details not present in the catalog. Keep replies short (around 3 sentences). No markdown.';
+            // base messages exclude any existing system messages (we will provide a single merged system message)
+            const baseMessages = (chatState.messages || []).filter(m => m.role !== 'system');
+            // Prepare lengths for truncation
+            let messagesToSend = baseMessages.slice();
+            try {
+                const existingLen = baseMessages.reduce((acc, m) => acc + (m && m.content ? String(m.content).length : 0), 0);
+                const exportLen = exportListText ? String(exportListText).length : 0;
+                const LIMIT = 250000; // safe limit under server guard
+                let exportContent = exportListText || '';
+                if (existingLen + exportLen > LIMIT && exportContent) {
+                    const allowedForExport = Math.max(0, LIMIT - existingLen - 2000);
+                    exportContent = String(exportContent).slice(0, allowedForExport) + '\n\n...[truncated output]...';
+                }
+                const mergedSystem = exportContent ? (systemInstruction + '\n\n' + exportContent) : systemInstruction;
+                messagesToSend = [{ role: 'system', content: mergedSystem }, ...baseMessages];
+            } catch (e) {
+                // fallback: send base messages with a short system instruction
+                messagesToSend = [{ role: 'system', content: systemInstruction }, ...baseMessages];
+            }
+
+            const llmReply = await callAiChat(messagesToSend, chatState.conversationId, null);
+            if (llmReply) {
+                chatState.messages.push({ role: 'assistant', content: llmReply });
+                try { localStorage.setItem('chatbot_messages', JSON.stringify(chatState.messages)); } catch (e) { /* ignore */ }
+            }
             appendBotHtml(`<div class="chatbot-result">${escapeHtml(llmReply).replace(/\n/g,'<br/>')}</div>`);
         } catch (err) {
-            // fallback: show the local matches we built earlier
-            let html = '<div class="chatbot-result"><div style="font-weight:600;margin-bottom:6px;">Top matches (local)</div>';
-            top.slice(0,6).forEach(t => {
-                const g = t.game;
-                const id = g.bggId || g.id || g.bggid;
-                const summary = (sums[id] && (sums[id].description_en || sums[id].description_de_auto || sums[id].description_de)) || g.description || '';
-                const meta = [];
-                if (g.minPlayers || g.maxPlayers) meta.push(`${g.minPlayers || '?'}–${g.maxPlayers || '?'} players`);
-                if (g.playingTime) meta.push(`${g.playingTime} min`);
-                html += `<div style="margin-bottom:8px;">
-                            <div class="title">${escapeHtml(g.name || g.title || 'Unknown')}</div>
-                            <div class="meta">${escapeHtml(meta.join(' • '))}</div>
-                            <div style="margin-top:6px; font-size:0.9rem; color:#374151;">${escapeHtml((summary||'').slice(0,220))}${(summary||'').length>220? '…':''}</div>
-                            <div style="margin-top:6px;"><button class="btn btn-sm btn-outline-primary chatbot-open-game" data-bgg-id="${escapeHtml(id)}">Open</button></div>
-                        </div>`;
-            });
-            html += '</div>';
-            appendBotHtml(html);
+            const msg = err && err.message ? String(err.message) : 'An error occurred while contacting the AI. Please try again later.';
+            appendBotHtml(`<div class="chatbot-result">Error: ${escapeHtml(msg)}</div>`);
+            console.error('callAiChat error', err);
         }
-
-        // Wire open buttons
-        messagesEl.querySelectorAll('.chatbot-open-game').forEach(btn => {
-            btn.addEventListener('click', (ev) => {
-                const bid = btn.dataset.bggId;
-                const card = document.querySelector(`.game-card[data-bgg-id="${CSS.escape(bid)}"]`);
-                if (card) { card.click(); }
-                try { const modalEl = document.getElementById('game-details-modal'); if (modalEl) new bootstrap.Modal(modalEl).show(); } catch (e) {}
-            });
-        });
     }
 
     sendBtn.addEventListener('click', () => { handleQuery(inputEl.value); inputEl.value = ''; });
