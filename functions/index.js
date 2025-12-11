@@ -118,6 +118,10 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
     }
 
     try {
+      // Allow caller to override model via request body, else use env var, else default
+      const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.OPENROUTER_MODEL || "google/gemma-3-27b-it:free");
+      logger.info(`Using model: ${modelName}`);
+
       const apiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -125,7 +129,7 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          "model": "tngtech/deepseek-r1t2-chimera:free",
+          "model": modelName,
           "messages": [{ "role": "user", "content": prompt }],
         }),
       });

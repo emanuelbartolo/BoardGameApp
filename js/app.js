@@ -87,6 +87,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const summariesCollectionRef = db.collection('game_summaries');
     const configCollectionRef = db.collection('config');
 
+    // Helper: ensure Translate/Generate buttons match the latest summaries state
+    async function updateDescriptionButtons(bggId) {
+        if (!bggId) return;
+        const genBtn = document.getElementById('ai-summary-button');
+        const translateBtn = document.getElementById('translate-desc-button');
+        try {
+            const snap = await summariesCollectionRef.doc(bggId).get();
+            const data = snap.exists ? snap.data() : {};
+            if (data && data.description_de && String(data.description_de).trim()) {
+                if (genBtn) genBtn.classList.add('d-none');
+                if (translateBtn) translateBtn.classList.add('d-none');
+                return;
+            }
+            const lang = localStorage.getItem('bgg_lang') || 'de';
+            if (data && data.description_de_auto && String(data.description_de_auto).trim()) {
+                if (genBtn) genBtn.classList.add('d-none');
+                if (translateBtn && lang === 'de') translateBtn.classList.remove('d-none');
+                return;
+            }
+            if (data && data.description_en && String(data.description_en).trim()) {
+                if (genBtn) genBtn.classList.remove('d-none');
+                if (translateBtn && lang === 'de') translateBtn.classList.remove('d-none');
+                return;
+            }
+            // fallback: show generator, hide translate
+            if (genBtn) genBtn.classList.remove('d-none');
+            if (translateBtn) translateBtn.classList.add('d-none');
+        } catch (err) {
+            console.warn('Could not update description buttons:', err);
+        }
+    }
+
     // Group-scoped refs: will be bound to the active group via setActiveGroup()
     let activeGroupId = localStorage.getItem('selected_group_id') || 'default';
     let groupDocRef = db.collection('groups').doc(activeGroupId);
@@ -2571,36 +2603,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // --- Check for and display existing summary from the new collection ---
+            // --- Check for and display existing description/summary in game_summaries ---
             const lang = localStorage.getItem('bgg_lang') || 'de';
             const summaryField = `summary_${lang}`;
-            const summaryDoc = await summariesCollectionRef.doc(currentlySelectedBggId).get();
+            const summarySnap = await summariesCollectionRef.doc(currentlySelectedBggId).get();
+            const summaryData = summarySnap.exists ? summarySnap.data() : {};
             // Ensure the AI summary container exists in the modal body (modal body was overwritten earlier)
             let summaryContainer = document.getElementById('ai-summary-container');
             const modalBody = document.getElementById('game-modal-body');
             if (!summaryContainer && modalBody) {
                 summaryContainer = document.createElement('div');
                 summaryContainer.id = 'ai-summary-container';
-                // insert at top of body after content
                 modalBody.appendChild(summaryContainer);
             }
+
+            // Helper to show/hide the generate and translate buttons
+            const genBtnEl = document.getElementById('ai-summary-button');
+            const translateBtnEl = document.getElementById('translate-desc-button');
+
             if (summaryContainer) {
-                // Prefer the imported description from the game document when present
-                if (game && game.description && String(game.description).trim()) {
-                    summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${game.description}</p>`;
-                    // Hide AI-generation button when description exists (no need to generate)
-                    const genBtnEl = document.getElementById('ai-summary-button');
+                // Display priority:
+                // 1) description_de (admin final)
+                // 2) description_de_auto (auto translation)
+                // 3) description_en (imported English) — show Translate button
+                // 4) fallback to AI summary in summaries collection
+                // Show German descriptions only when UI language is German; otherwise prefer English
+                if (lang === 'de' && summaryData && summaryData.description_de && String(summaryData.description_de).trim()) {
+                    summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${summaryData.description_de}</p>`;
                     if (genBtnEl) genBtnEl.classList.add('d-none');
+                    if (translateBtnEl) translateBtnEl.classList.add('d-none');
+                } else if (lang === 'de' && summaryData && summaryData.description_de_auto && String(summaryData.description_de_auto).trim()) {
+                    summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${summaryData.description_de_auto} <span class="badge bg-secondary ms-2">${translations.auto_translated_badge || 'Auto-translated'}</span></p>`;
+                    if (genBtnEl) genBtnEl.classList.add('d-none');
+                    if (translateBtnEl) translateBtnEl.classList.remove('d-none');
+                } else if (summaryData && summaryData.description_en && String(summaryData.description_en).trim()) {
+                    // Show English source and allow translation when appropriate
+                    summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description (EN):'}</strong> ${summaryData.description_en}</p>`;
+                    if (genBtnEl) genBtnEl.classList.remove('d-none');
+                    if (translateBtnEl && lang === 'de') translateBtnEl.classList.remove('d-none');
                 } else {
-                    // Show existing saved AI summary (from separate summaries collection)
-                    if (summaryDoc.exists && summaryDoc.data()[summaryField]) {
-                        summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summaryDoc.data()[summaryField]}</p>`;
+                    // No imported description; fall back to AI summaries
+                    if (summarySnap.exists && summaryData[summaryField]) {
+                        summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${summaryData[summaryField]}</p>`;
                     } else {
                         summaryContainer.innerHTML = `<p class="text-muted">${translations.ai_summary_missing || 'No summary available.'}</p>`;
                     }
-                    // Ensure generate button is visible when no imported description
-                    const genBtnEl = document.getElementById('ai-summary-button');
                     if (genBtnEl) genBtnEl.classList.remove('d-none');
+                    if (translateBtnEl) translateBtnEl.classList.add('d-none');
                 }
             }
 
@@ -2625,17 +2674,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     editBtn = editBtn || document.createElement('button');
                     editBtn.id = 'edit-summary-button';
                     editBtn.className = 'btn btn-outline-secondary d-none';
-                    editBtn.textContent = 'Edit Summary';
+                    editBtn.textContent = translations.edit_summary_button || 'Edit Summary';
 
                     saveBtn = saveBtn || document.createElement('button');
                     saveBtn.id = 'save-summary-button';
                     saveBtn.className = 'btn btn-primary d-none';
-                    saveBtn.textContent = 'Save Summary';
+                    saveBtn.textContent = translations.save_summary_button || 'Save Summary';
 
                     deleteBtn = deleteBtn || document.createElement('button');
                     deleteBtn.id = 'delete-summary-button';
                     deleteBtn.className = 'btn btn-danger d-none';
-                    deleteBtn.textContent = 'Delete Summary';
+                    deleteBtn.textContent = translations.delete_summary_button || 'Delete Summary';
 
                     container.appendChild(editBtn);
                     container.appendChild(saveBtn);
@@ -2663,7 +2712,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const label = document.createElement('label');
                     label.setAttribute('for', 'ai-summary-text');
                     label.className = 'form-label';
-                    label.textContent = 'Edit AI Summary (admin)';
+                    label.textContent = (translations.edit_summary_button || 'Edit Summary') + ' (admin)';
                     aiEditor.appendChild(label);
                     aiEditor.appendChild(aiText);
                     modalBody.appendChild(aiEditor);
@@ -2722,15 +2771,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             const hasDescription = game && game.description && String(game.description).trim();
                             if (hasDescription) {
-                                // Save into the games collection description field
-                                await gamesCollectionRef.doc(currentlySelectedBggId).set({ description: newText }, { merge: true });
-                                summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${newText}</p>`;
+                                                    await gamesCollectionRef.doc(currentlySelectedBggId).set({ description: newText }, { merge: true });
+                                                    summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${newText}</p>`;
+                                                    try { await updateDescriptionButtons(currentlySelectedBggId); } catch(_){}
                             } else {
                                 // Save into the summaries collection as before
                                 const data = {};
                                 data[summaryField] = newText;
                                 await summariesCollectionRef.doc(currentlySelectedBggId).set(data, { merge: true });
-                                summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${newText}</p>`;
+                                summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${newText}</p>`;
+                                try { await updateDescriptionButtons(currentlySelectedBggId); } catch(_){}
                             }
                             // hide editor and save
                             aiEditor.classList.add('d-none');
@@ -2755,6 +2805,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     await docRef.set(empty, { merge: true });
                                 }
                                 summaryContainer.innerHTML = `<p class="text-muted">${translations.ai_summary_missing || 'No summary available.'}</p>`;
+                                try { await updateDescriptionButtons(currentlySelectedBggId); } catch(_){}
                             } else {
                                 const empty = {};
                                 empty[summaryField] = firebase.firestore.FieldValue.delete();
@@ -2779,6 +2830,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn('AI summary admin controls not available:', err);
             }
             // --- End summary check ---
+            // Ensure buttons reflect latest state
+            try { await updateDescriptionButtons(currentlySelectedBggId); } catch(_){}
 
             gameDetailsModal.show();
         }
@@ -2811,52 +2864,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- API and AI Functions ---
 
-    // Generate AI Summary
-    document.getElementById('ai-summary-button').addEventListener('click', async () => {
+    // Translate Description → DE (reuse generateAiSummary cloud function)
+    document.getElementById('translate-desc-button').addEventListener('click', async () => {
         if (!currentlySelectedBggId) return;
 
         const summaryContainer = document.getElementById('ai-summary-container');
-        summaryContainer.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Generating...</span></div>';
+        if (!summaryContainer) return;
 
-        const gameDoc = await gamesCollectionRef.doc(currentlySelectedBggId).get();
-        if (!gameDoc.exists) {
-            summaryContainer.innerHTML = '<p class="text-danger">Could not find game data.</p>';
+        // Get the English source text from game_summaries or fallback to games.description
+        const sumSnap = await summariesCollectionRef.doc(currentlySelectedBggId).get();
+        const sumData = sumSnap.exists ? sumSnap.data() : {};
+        let sourceText = (sumData && sumData.description_en) ? sumData.description_en : null;
+        if (!sourceText) {
+            const gameDoc = await gamesCollectionRef.doc(currentlySelectedBggId).get();
+            if (gameDoc.exists && gameDoc.data() && gameDoc.data().description) {
+                sourceText = gameDoc.data().description;
+            }
+        }
+        if (!sourceText || !String(sourceText).trim()) {
+            alert('No English description available to translate.');
             return;
         }
-        const game = gameDoc.data();
 
-        const lang = localStorage.getItem('bgg_lang') || 'de';
-        const langName = lang === 'de' ? 'German' : 'English';
-        const prompt = `You are a board game support bot. Provide a short, factual, and easy-to-understand summary of the board game "${game.name}" - BGGID: "${game.bggId}". Base your answer on actual board game data. Do not make up information. Focus on the theme and what players do mechanically in the game. Keep it to 2-3 sentences. Please reply only in ${langName}.`;
+        if (!confirm('Translate the English description into German?')) return;
+
+        summaryContainer.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Translating...</span></div> Translating...';
 
         try {
+            const prompt = `Translate the following board game description into idiomatic German. Preserve proper names, do not add or remove factual details, and return only the translated text:\n\n${sourceText}`;
             const functionUrl = "https://us-central1-boardgameapp-cc741.cloudfunctions.net/generateAiSummary";
             const response = await fetch(functionUrl, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt: prompt })
             });
-
-            if (!response.ok) {
-                throw new Error(`Cloud Function error! Status: ${response.status}`);
-            }
-
+            if (!response.ok) throw new Error(`Cloud Function error: ${response.status}`);
             const data = await response.json();
-            const summary = data.summary;
-            summaryContainer.innerHTML = `<p><strong>${translations.ai_summary_heading || 'AI Summary:'}</strong> ${summary}</p>`;
+            const translation = data.summary || data.translation || '';
 
-            // --- Save summary to Firestore ---
-            const summaryField = `summary_${lang}`;
-            await summariesCollectionRef.doc(currentlySelectedBggId).set({
-                [summaryField]: summary
-            }, { merge: true });
-            // --- End save summary ---
+            // Save translation into game_summaries.description_de (overwrite as requested)
+            await summariesCollectionRef.doc(currentlySelectedBggId).set({ description_de: translation, description_meta: { translatedAt: firebase.firestore.FieldValue.serverTimestamp(), translatedBy: 'ai', sourceLang: 'en', targetLang: 'de' } }, { merge: true });
 
-        } catch (error) {
-            console.error("AI Summary Error:", error);
-            summaryContainer.innerHTML = `<p class="text-danger">Failed to generate AI summary. Check the console for details.</p>`;
+            // Update UI
+            summaryContainer.innerHTML = `<p><strong>${translations.description_heading || 'Description:'}</strong> ${translation} <span class="badge bg-secondary ms-2">${translations.auto_translated_badge || 'Auto-translated'}</span></p>`;
+            // Ensure buttons are synced
+            try { await updateDescriptionButtons(currentlySelectedBggId); } catch(_){}
+        } catch (err) {
+            console.error('Translation error:', err);
+            summaryContainer.innerHTML = `<p class="text-danger">Translation failed. See console for details.</p>`;
         }
     });
 
@@ -3084,9 +3139,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 3. Add/Update games from the new XML
                 newGames.forEach(game => {
                     const gameRef = gamesCollectionRef.doc(game.bggId);
-                    // Use set with merge:true to update existing documents or create new ones
-                    // This way, if a game exists, it keeps its existing shortlist/wishlist data
-                    batch.set(gameRef, game, { merge: true });
+
+                    // Remove 'description' from the `games` collection payload; we'll store
+                    // the English description in the separate `game_summaries` collection.
+                    const gameForGamesCollection = { ...game };
+                    if (gameForGamesCollection.hasOwnProperty('description')) {
+                        delete gameForGamesCollection.description;
+                    }
+
+                    // Write the main game document (without description)
+                    batch.set(gameRef, gameForGamesCollection, { merge: true });
+
+                    // If the XML provided a description, save it into game_summaries/{bggId}.description_en
+                    if (game.description && String(game.description).trim()) {
+                        const sumRef = summariesCollectionRef.doc(game.bggId);
+                        batch.set(sumRef, { description_en: game.description }, { merge: true });
+                    }
+
                     if (existingGameBggIds.has(game.bggId)) {
                         gamesUpdated++;
                     } else {
