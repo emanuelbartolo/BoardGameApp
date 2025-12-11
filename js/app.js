@@ -2792,37 +2792,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
 
                     deleteBtn.onclick = async () => {
-                        if (!confirm(translations.confirm_delete_ai_summary || 'Delete the AI-generated summary?')) return;
+                        const confirmText = translations.confirm_delete_description || translations.confirm_delete_ai_summary || 'Delete description/summary?';
+                        if (!confirm(confirmText)) return;
                         try {
-                            const hasDescription = game && game.description && String(game.description).trim();
-                            if (hasDescription) {
-                                const empty = { description: firebase.firestore.FieldValue.delete() };
-                                const docRef = gamesCollectionRef.doc(currentlySelectedBggId);
-                                try {
-                                    await docRef.update(empty);
-                                } catch (updateErr) {
-                                    console.debug('Update failed when deleting description, falling back to set with merge:', updateErr);
-                                    await docRef.set(empty, { merge: true });
-                                }
-                                summaryContainer.innerHTML = `<p class="text-muted">${translations.ai_summary_missing || 'No summary available.'}</p>`;
-                                try { await updateDescriptionButtons(currentlySelectedBggId); } catch(_){}
-                            } else {
-                                const empty = {};
-                                empty[summaryField] = firebase.firestore.FieldValue.delete();
-                                const docRef = summariesCollectionRef.doc(currentlySelectedBggId);
-                                try {
-                                    await docRef.update(empty);
-                                } catch (updateErr) {
-                                    console.debug('Update failed when deleting summary, falling back to set with merge:', updateErr);
-                                    await docRef.set(empty, { merge: true });
-                                }
-                                summaryContainer.innerHTML = `<p class="text-muted">${translations.ai_summary_missing || 'No summary available.'}</p>`;
+                            // Remove only the final German description field (preserve English/source fields)
+                            const deletePayload = { description_de: firebase.firestore.FieldValue.delete() };
+
+                            // Apply to summaries collection only; preserve description_en
+                            const summariesRef = summariesCollectionRef.doc(currentlySelectedBggId);
+                            try {
+                                await summariesRef.update(deletePayload);
+                            } catch (updateErr) {
+                                console.debug('Update failed when deleting german summary fields, falling back to set with merge:', updateErr);
+                                await summariesRef.set(deletePayload, { merge: true });
                             }
+
+                            summaryContainer.innerHTML = `<p class="text-muted">${translations.ai_summary_missing || 'No summary available.'}</p>`;
+                            try { await updateDescriptionButtons(currentlySelectedBggId); } catch(_){ }
+
                             aiEditor.classList.add('d-none');
                             saveBtn.classList.add('d-none');
                         } catch (err) {
                             console.error('Error deleting summary/description:', err);
-                            alert('Could not delete summary/description. See console for details.');
+                            alert(translations.delete_summary_failed || 'Could not delete summary/description. See console for details.');
                         }
                     };
                 }
@@ -2891,7 +2883,7 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryContainer.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Translating...</span></div> Translating...';
 
         try {
-            const prompt = `Translate the following board game description into idiomatic German. Preserve proper names, do not add or remove factual details, and return only the translated text:\n\n${sourceText}`;
+            const prompt = `You are a translator that must return ONLY a single, well-formed HTML fragment (UTF-8) and nothing else — no explanations, no markdown, no code fences. Use only these tags: <div class="description">, <p>, <strong>, <em>, <ul>, <li>. Preserve the original HTML structure and attributes; translate text nodes from English to German but do not alter tags or attributes. Do not include scripts, comments, or external resources. Keep punctuation and list markers as plain text inside the tags. Here is the English HTML to translate (translate text nodes only):\n\n${sourceText}`;
             const functionUrl = "https://us-central1-boardgameapp-cc741.cloudfunctions.net/generateAiSummary";
             const response = await fetch(functionUrl, {
                 method: "POST",

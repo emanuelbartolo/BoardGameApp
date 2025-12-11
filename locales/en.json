@@ -149,6 +149,8 @@
   "set_password_save_button": "Save Password",
   "confirm_delete_title": "Confirm Delete",
   "confirm_delete_yes": "Delete",
+  "confirm_delete_description": "Delete the description/summary?",
+  "delete_summary_failed": "Could not delete description/summary. See console for details.",
   "user_options_title": "User Options",
   "user_opt_set_password": "Set/Reset Password",
   "user_opt_change_username": "Change Username",

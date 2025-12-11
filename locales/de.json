@@ -154,6 +154,8 @@
   "set_password_save_button": "Passwort speichern",
   "confirm_delete_title": "Löschen bestätigen",
   "confirm_delete_yes": "Löschen",
+  "confirm_delete_description": "Beschreibung/Zusammenfassung löschen?",
+  "delete_summary_failed": "Konnte Beschreibung/Zusammenfassung nicht löschen. Siehe Konsole.",
   "user_options_title": "Benutzeroptionen",
   "user_opt_set_password": "Passwort setzen/zurücksetzen",
   "modal_edit_event_title": "Termin bearbeiten",
