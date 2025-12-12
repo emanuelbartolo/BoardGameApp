@@ -24,10 +24,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadChatbotTranslations(initialLang);
 
     // Apply translations to DOM attributes/text that aren't covered by the main app i18n flow
-    try {
-        if (panel && chatbotTranslations.chatbot_panel_label) panel.setAttribute('aria-label', chatbotTranslations.chatbot_panel_label);
-        if (sendBtn && chatbotTranslations.chatbot_send_button) sendBtn.textContent = chatbotTranslations.chatbot_send_button;
-    } catch (e) { /* ignore */ }
+    function updateChatbotUiTranslations() {
+        try {
+            const lang = getUiLang();
+            if (panel && chatbotTranslations.chatbot_panel_label) panel.setAttribute('aria-label', chatbotTranslations.chatbot_panel_label);
+            if (sendBtn && chatbotTranslations.chatbot_send_button) sendBtn.textContent = chatbotTranslations.chatbot_send_button;
+            // Update welcome text if present
+            try {
+                const welcomeEl = messagesEl.querySelector('.chatbot-welcome');
+                if (welcomeEl) {
+                    welcomeEl.innerHTML = escapeHtml(chatbotTranslations.chatbot_welcome || (lang === 'de' ? 'Hi! Wie kann ich helfen?' : 'Hi! How can I help you?'));
+                }
+            } catch (e) { /* ignore */ }
+        } catch (e) { /* ignore */ }
+    }
+    try { updateChatbotUiTranslations(); } catch (e) { /* ignore */ }
 
     function openPanel() { panel.classList.remove('d-none'); inputEl.focus(); }
     async function closePanel() {
@@ -123,15 +134,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `You are a game enthusiast helping the user choose a game to play. ONLY use the provided catalog data below — do NOT invent games or details not present in the catalog. Keep replies short (around 3 sentences). No markdown. ${enforceLangLine}`;
     }
 
-    // Listen for changes to the UI language (from other tabs or parts of the app) and update the system message.
+    // Listen for changes to the UI language or login state (from other tabs or parts of the app)
     window.addEventListener('storage', (e) => {
         if (!e) return;
+        // Language change -> reload translations, update UI and system instruction
         if (e.key === 'bgg_lang') {
+            (async () => {
+                try {
+                    const lang = getUiLang();
+                    await loadChatbotTranslations(lang);
+                    updateChatbotUiTranslations();
+                    if (chatState && chatState.messages && chatState.messages.length) {
+                        chatState.messages[0].content = buildSystemInstruction(lang);
+                        try { localStorage.setItem('chatbot_messages', JSON.stringify(chatState.messages)); } catch (ex) { /* ignore */ }
+                    }
+                } catch (ex) { /* ignore */ }
+            })();
+        }
+        // Login state changed -> show/hide toggle and close panel on logout
+        if (e.key === 'bgg_username') {
             try {
-                const lang = getUiLang();
-                if (chatState && chatState.messages && chatState.messages.length) {
-                    chatState.messages[0].content = buildSystemInstruction(lang);
-                    try { localStorage.setItem('chatbot_messages', JSON.stringify(chatState.messages)); } catch (ex) { /* ignore */ }
+                const username = localStorage.getItem('bgg_username');
+                if (!username) {
+                    // logged out
+                    try { if (!panel.classList.contains('d-none')) closePanel(); } catch (_) {}
+                    try { toggle.style.display = 'none'; toggle.setAttribute('aria-hidden','true'); } catch (_) {}
+                } else {
+                    try { toggle.style.display = ''; toggle.removeAttribute('aria-hidden'); } catch (_) {}
                 }
             } catch (ex) { /* ignore */ }
         }
@@ -273,8 +302,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     sendBtn.addEventListener('click', () => { handleQuery(inputEl.value); inputEl.value = ''; });
     inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendBtn.click(); } });
 
-    // Small welcome message
-    appendBotHtml('<div class="chatbot-result">' + (chatbotTranslations.chatbot_welcome || 'Hi! How can I help you?') + '</div>');
+    // Show/hide chatbot toggle depending on login state
+    function updateVisibilityBasedOnLogin() {
+        try {
+            const username = localStorage.getItem('bgg_username');
+            if (!username) {
+                toggle.style.display = 'none';
+                toggle.setAttribute('aria-hidden','true');
+                if (!panel.classList.contains('d-none')) closePanel();
+            } else {
+                toggle.style.display = '';
+                toggle.removeAttribute('aria-hidden');
+            }
+        } catch (e) { /* ignore */ }
+    }
+    try { updateVisibilityBasedOnLogin(); } catch (e) { /* ignore */ }
+    // Poll briefly to catch same-tab login actions that update localStorage without firing storage events
+    try {
+        const loginPoll = setInterval(() => { try { updateVisibilityBasedOnLogin(); } catch (_) {} }, 1500);
+        setTimeout(() => clearInterval(loginPoll), 60000);
+    } catch (e) { /* ignore */ }
+
+    // Small welcome message (give it a class so we can update it on language change)
+    appendBotHtml('<div class="chatbot-result chatbot-welcome">' + (chatbotTranslations.chatbot_welcome || 'Hi! How can I help you?') + '</div>');
 
     // util: simple html escape
     function escapeHtml(s) { if (!s) return ''; return String(s).replace(/[&<>"]+/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'\"'}[c]||c)); }
