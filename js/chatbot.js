@@ -273,7 +273,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const existingLen = baseMessages.reduce((acc, m) => acc + (m && m.content ? String(m.content).length : 0), 0);
                 const exportLen = exportListText ? String(exportListText).length : 0;
-                const LIMIT = 250000; // safe limit under server guard
+                // Match server-side guard (default 1.2M chars). Be careful — large payloads
+                // increase latency and cost. Change only for testing or if server is configured.
+                const LIMIT = 1200000; // ~1.2M chars
                 let exportContent = exportListText || '';
                     if (existingLen + exportLen > LIMIT && exportContent) {
                     const allowedForExport = Math.max(0, LIMIT - existingLen - 2000);

@@ -87,6 +87,11 @@ exports.validatePassword = onCall(async (request) => {
   return { valid };
 });
 
+// Configurable server-side limits and LLM params (environment variables)
+const SERVER_MAX_INPUT_CHARS = parseInt(process.env.OPENROUTER_MAX_INPUT_CHARS || '1200000', 10); // default 1.2M chars
+const OPENROUTER_DEFAULT_TEMPERATURE = parseFloat(process.env.OPENROUTER_TEMPERATURE || '0.0');
+const OPENROUTER_DEFAULT_MAX_OUTPUT = parseInt(process.env.OPENROUTER_MAX_OUTPUT_TOKENS || '256', 10);
+
 exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (request, response) => {
     response.set('Access-Control-Allow-Origin', '*');
     response.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
@@ -122,17 +127,34 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
       const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.OPENROUTER_MODEL || "google/gemma-3-27b-it:free");
       logger.info(`Using model: ${modelName}`);
 
+      // Guard input size
+      if (String(prompt).length > SERVER_MAX_INPUT_CHARS) {
+        response.status(413).send(`Prompt too large (>${SERVER_MAX_INPUT_CHARS} chars).`);
+        return;
+      }
+
+      // Prepare OpenRouter request with timeout
+      const controller = new AbortController();
+      const timeoutMs = parseInt(process.env.OPENROUTER_REQUEST_TIMEOUT_MS || '120000', 10); // default 120s
+      const to = setTimeout(() => controller.abort(), timeoutMs);
+
+      const apiBody = {
+        model: modelName,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: OPENROUTER_DEFAULT_TEMPERATURE,
+        max_output_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT
+      };
+
       const apiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          "model": modelName,
-          "messages": [{ "role": "user", "content": prompt }],
-        }),
+        body: JSON.stringify(apiBody),
+        signal: controller.signal
       });
+      clearTimeout(to);
 
       if (!apiResponse.ok) {
         const errorBody = await apiResponse.text();
@@ -155,7 +177,8 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
 // Accepts { messages: [{role,content}, ...], conversationId?, model? }
 // Persists messages under ai_chats/{conversationId}/messages and returns { summary, conversationId }
 // Ensure the OpenRouter secret is available to this callable function
-exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey] }, async (request) => {
+// Increase timeout for long-running LLM requests
+exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey], timeoutSeconds: 540 }, async (request) => {
   const data = request.data || {};
   const incoming = Array.isArray(data.messages) ? data.messages
                     : (data.prompt ? [{ role: 'user', content: String(data.prompt) }] : null);
@@ -166,10 +189,10 @@ exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey] }, async (reques
     throw new Error('Missing messages or prompt');
   }
 
-  // Basic size guard
+  // Basic size guard (configurable)
   const totalLength = incoming.reduce((acc, m) => acc + (m && m.content ? String(m.content).length : 0), 0);
-  if (totalLength > 300000) {
-    throw new Error('Message payload too large');
+  if (totalLength > SERVER_MAX_INPUT_CHARS) {
+    throw new Error(`Message payload too large (>${SERVER_MAX_INPUT_CHARS} chars)`);
   }
 
   const apiKey = openrouterApiKey.value();
@@ -199,15 +222,28 @@ exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey] }, async (reques
     });
     await batch.commit();
 
-    // Forward full messages to OpenRouter
+    // Forward full messages to OpenRouter with controlled params and timeout
+    const controller = new AbortController();
+    const timeoutMs = parseInt(process.env.OPENROUTER_REQUEST_TIMEOUT_MS || '120000', 10);
+    const to = setTimeout(() => controller.abort(), timeoutMs);
+
+    const apiBody = {
+      model: modelName,
+      messages: normalized,
+      temperature: OPENROUTER_DEFAULT_TEMPERATURE,
+      max_output_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT
+    };
+
     const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ model: modelName, messages: normalized })
+      body: JSON.stringify(apiBody),
+      signal: controller.signal
     });
+    clearTimeout(to);
 
     if (!apiResponse.ok) {
       const errText = await apiResponse.text();
