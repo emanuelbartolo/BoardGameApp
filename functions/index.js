@@ -8,8 +8,8 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
 
-// Corrected: Define the OpenRouter API key as a SECRET
-const openrouterApiKey = defineSecret("OPENROUTER_API_KEY");
+// Google AI Developer API key (aistudio.google.com)
+const googleAiApiKey = defineSecret("GOOGLE_AI_API_KEY");
 
 // --- Password Hashing Utilities ---
 // Using PBKDF2 for password hashing (built into Node crypto, no extra deps)
@@ -92,7 +92,7 @@ const SERVER_MAX_INPUT_CHARS = parseInt(process.env.OPENROUTER_MAX_INPUT_CHARS |
 const OPENROUTER_DEFAULT_TEMPERATURE = parseFloat(process.env.OPENROUTER_TEMPERATURE || '0.3');
 const OPENROUTER_DEFAULT_MAX_OUTPUT = parseInt(process.env.OPENROUTER_MAX_OUTPUT_TOKENS || '512', 10);
 
-exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (request, response) => {
+exports.generateAiSummary = onRequest({secrets: [googleAiApiKey]}, async (request, response) => {
     response.set('Access-Control-Allow-Origin', '*');
     response.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     response.set('Access-Control-Allow-Headers', 'Content-Type');
@@ -115,16 +115,16 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
     }
 
     // Access the secret's value using .value()
-    const apiKey = openrouterApiKey.value();
+    const apiKey = googleAiApiKey.value();
     if (!apiKey) {
-      logger.error("OPENROUTER_API_KEY secret is not available.");
+      logger.error("GOOGLE_AI_API_KEY secret is not available.");
       response.status(500).send("API key is not configured.");
       return;
     }
 
     try {
       // Allow caller to override model via request body, else use env var, else default
-      const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free");
+      const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.AI_MODEL || "gemma-4-31b-it");
       logger.info(`Using model: ${modelName}`);
 
       // Guard input size
@@ -142,10 +142,10 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
         model: modelName,
         messages: [{ role: 'user', content: prompt }],
         temperature: OPENROUTER_DEFAULT_TEMPERATURE,
-        max_output_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT
+        max_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT
       };
 
-      const apiResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const apiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
@@ -158,8 +158,8 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
 
       if (!apiResponse.ok) {
         const errorBody = await apiResponse.text();
-        logger.error("OpenRouter API error:", apiResponse.status, errorBody);
-        response.status(apiResponse.status).send("Error from OpenRouter API.");
+        logger.error("Google AI API error:", apiResponse.status, errorBody);
+        response.status(apiResponse.status).send("Error from Google AI API.");
         return;
       }
 
@@ -178,12 +178,12 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
 // Persists messages under ai_chats/{conversationId}/messages and returns { summary, conversationId }
 // Ensure the OpenRouter secret is available to this callable function
 // Increase timeout for long-running LLM requests
-exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey], timeoutSeconds: 540 }, async (request) => {
+exports.generateAiChatV2 = onCall({ secrets: [googleAiApiKey], timeoutSeconds: 540 }, async (request) => {
   const data = request.data || {};
   const incoming = Array.isArray(data.messages) ? data.messages
                     : (data.prompt ? [{ role: 'user', content: String(data.prompt) }] : null);
   const providedConvoId = data.conversationId ? String(data.conversationId) : null;
-  const modelName = data.model ? String(data.model) : (process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free');
+  const modelName = data.model ? String(data.model) : (process.env.AI_MODEL || 'gemma-4-31b-it');
 
   if (!incoming || !incoming.length) {
     throw new Error('Missing messages or prompt');
@@ -195,7 +195,7 @@ exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey], timeoutSeconds:
     throw new Error(`Message payload too large (>${SERVER_MAX_INPUT_CHARS} chars)`);
   }
 
-  const apiKey = openrouterApiKey.value();
+  const apiKey = googleAiApiKey.value();
   if (!apiKey) {
     throw new Error('API key not configured');
   }
@@ -231,10 +231,10 @@ exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey], timeoutSeconds:
       model: modelName,
       messages: normalized,
       temperature: OPENROUTER_DEFAULT_TEMPERATURE,
-      max_output_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT
+      max_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT
     };
 
-    const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const apiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -247,9 +247,9 @@ exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey], timeoutSeconds:
 
     if (!apiResponse.ok) {
       const errText = await apiResponse.text();
-      logger.error('OpenRouter error', apiResponse.status, errText);
+      logger.error('Google AI API error', apiResponse.status, errText);
       // Return a structured error instead of throwing to make debugging easier for clients
-      return { error: 'OpenRouter API error', details: `status:${apiResponse.status} body:${errText}` };
+      return { error: 'Google AI API error', details: `status:${apiResponse.status} body:${errText}` };
     }
 
     const apiData = await apiResponse.json();
