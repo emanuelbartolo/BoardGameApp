@@ -90,7 +90,7 @@ exports.validatePassword = onCall(async (request) => {
 // Configurable server-side limits and LLM params (environment variables)
 const SERVER_MAX_INPUT_CHARS = parseInt(process.env.OPENROUTER_MAX_INPUT_CHARS || '1200000', 10); // default 1.2M chars
 const OPENROUTER_DEFAULT_TEMPERATURE = parseFloat(process.env.OPENROUTER_TEMPERATURE || '0.3');
-const OPENROUTER_DEFAULT_MAX_OUTPUT = parseInt(process.env.OPENROUTER_MAX_OUTPUT_TOKENS || '2048', 10);
+const OPENROUTER_DEFAULT_MAX_OUTPUT = parseInt(process.env.OPENROUTER_MAX_OUTPUT_TOKENS || '8192', 10);
 
 exports.generateAiSummary = onRequest({secrets: [googleAiApiKey]}, async (request, response) => {
     response.set('Access-Control-Allow-Origin', '*');
