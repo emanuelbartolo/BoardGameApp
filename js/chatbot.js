@@ -234,6 +234,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         if (g.minPlayers || g.maxPlayers) entry.players = `${g.minPlayers || '?'}-${g.maxPlayers || '?'}`;
                                         if (g.playingTime) entry.time = g.playingTime;
                                         if (g.rating) entry.rating = g.rating;
+                                        const desc = g.description || g.description_en || '';
+                                        if (desc) entry.desc = desc.length > 200 ? desc.slice(0, 200) + '…' : desc;
                                         return entry;
                                     }).filter(g => g.name);
                                     if (slim.length) {
