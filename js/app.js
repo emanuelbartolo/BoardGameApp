@@ -129,6 +129,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let eventsCollectionRef = groupDocRef.collection('events');
     let pollsCollectionRef = groupDocRef.collection('polls');
 
+    // Unsubscribe handles for real-time listeners — must be called before resubscribing
+    // when the user switches groups, to prevent stale listeners from firing and leaking reads.
+    let unsubShortlist = null;
+    let unsubEvents = null;
+    let unsubPolls = null;
+
+    // Cache for game data — avoids Firestore re-fetch on every search/filter keystroke
+    let shortlistedMapCache = {};
+
     // --- Core Functions ---
 
     // Group modal UI elements (join-only flow)
@@ -421,59 +430,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let groups = [];
         try {
-            // Try collectionGroup query first (fast)
-            // When using FieldPath.documentId() against a collectionGroup the
-            // provided value must be a full document path (e.g. 'groups/<gid>/members/<mid>').
-            // Our member docs are keyed by username and won't be a full path, which
-            // causes Firestore to throw. Only attempt the fast path when currentUser
-            // appears to be a full path (contains a '/'). Otherwise skip to fallback.
-            if (currentUser && currentUser.includes('/')) {
-                const q = db.collectionGroup('members').where(firebase.firestore.FieldPath.documentId(), '==', currentUser);
-                const snap = await q.get();
-                if (!snap.empty) {
-                    const groupRefs = [];
-                    const seen = new Set();
-                    for (const mdoc of snap.docs) {
-                        const membersColl = mdoc.ref.parent;
-                        const groupRef = membersColl.parent;
-                        if (groupRef && !seen.has(groupRef.path)) {
-                            seen.add(groupRef.path);
-                            groupRefs.push(groupRef);
-                        }
-                    }
-                    const groupDocs = await Promise.all(groupRefs.map(r => r.get().catch(() => null)));
-                    groupDocs.forEach(gdoc => {
-                        if (!gdoc || !gdoc.exists) return;
-                        const data = gdoc.data() || {};
-                        groups.push({ id: gdoc.id, name: data.name || gdoc.id });
-                    });
-                }
-            }
+            groups = await getUserGroups();
         } catch (err) {
-            console.warn('collectionGroup approach failed, falling back to scanning groups:', err);
-        }
-
-        if (groups.length === 0) {
-            // Fallback: iterate top-level groups and check membership
-            try {
-                const groupsSnap = await db.collection('groups').get();
-                if (!groupsSnap.empty) {
-                    await Promise.all(groupsSnap.docs.map(async (gdoc) => {
-                        try {
-                            const memRef = db.collection('groups').doc(gdoc.id).collection('members').doc(currentUser);
-                            const memSnap = await memRef.get();
-                            if (memSnap.exists) {
-                                const data = gdoc.data() || {};
-                                groups.push({ id: gdoc.id, name: data.name || gdoc.id });
-                            }
-                        } catch (e) {
-                            // ignore per-group errors
-                        }
-                    }));
-                }
-            } catch (err) {
-                console.error('populateUserGroupSelect error (fallback):', err);
-            }
+            console.error('populateUserGroupSelect error:', err);
         }
 
         if (!groups || groups.length === 0) {
@@ -1635,6 +1594,8 @@ document.addEventListener('DOMContentLoaded', () => {
         shortlistCollectionRef = groupDocRef.collection('shortlist');
         eventsCollectionRef = groupDocRef.collection('events');
         pollsCollectionRef = groupDocRef.collection('polls');
+        // Invalidate shortlist cache so the collection re-renders with correct shortlist state
+        shortlistedMapCache = {};
         // Re-fetch views that depend on these refs
         if (views.shortlist && !views.shortlist.classList.contains('d-none')) fetchAndDisplayShortlist();
         if (views.events && !views.events.classList.contains('d-none')) fetchAndDisplayEvents();
@@ -1837,8 +1798,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchAndDisplayShortlist() {
+        // Unsubscribe any previous listener before creating a new one (prevents leaks on group switch)
+        if (unsubShortlist) { unsubShortlist(); unsubShortlist = null; }
         // Use onSnapshot for real-time updates
-        shortlistCollectionRef.onSnapshot(async snapshot => {
+        unsubShortlist = shortlistCollectionRef.onSnapshot(async snapshot => {
             shortlistGamesContainer.innerHTML = ''; // Clear old list
             if (snapshot.empty) {
                 shortlistGamesContainer.innerHTML = '<p>No games on the shortlist yet.</p>';
@@ -1927,110 +1890,114 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function fetchAndDisplayGames() {
+    // Fetch games from Firestore (or use cache) then render.
+    // Pass forceReload=true to bypass the cache (e.g. after a BGG upload).
+    async function fetchAndDisplayGames(forceReload = false) {
+        // Use cached game data when available to avoid Firestore re-fetch on every search/filter change.
+        if (!forceReload && window.allGamesUnfiltered && window.allGamesUnfiltered.length > 0) {
+            renderFilteredGames(window.allGamesUnfiltered, shortlistedMapCache);
+            return;
+        }
+
         gameCollectionContainer.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
-        
+
         try {
             // Load current shortlist so we can mark admin buttons for already-shortlisted games
             const shortlistSnapshot = await shortlistCollectionRef.get();
             const shortlistedMap = {};
             shortlistSnapshot.forEach(doc => { shortlistedMap[doc.id] = doc.data(); });
+            shortlistedMapCache = shortlistedMap;
 
             const snapshot = await gamesCollectionRef.orderBy('name').get();
             gameCollectionContainer.innerHTML = ''; // Clear spinner
-            
+
             if (snapshot.empty) {
                 gameCollectionContainer.innerHTML = '<p>No games in the collection yet. The admin needs to upload a BGG collection file.</p>';
                 return;
             }
 
-            const toNumber = (val) => {
-                const n = parseInt(val, 10);
-                return Number.isFinite(n) ? n : null;
-            };
+            const allGames = snapshot.docs.map(doc => doc.data());
+            // Cache for future filter/search operations (avoids redundant Firestore reads)
+            try { window.allGamesUnfiltered = allGames; } catch (e) { /* ignore */ }
 
-            // Build array for filtering/sorting
-            let games = snapshot.docs.map(doc => doc.data());
+            renderFilteredGames(allGames, shortlistedMap);
+        } catch (error) {
+            console.error("Error fetching games from Firebase:", error);
+            gameCollectionContainer.innerHTML = '<p class="text-danger">Could not fetch game collection from Firebase.</p>';
+        }
+    }
 
-            // Expose the unfiltered complete games list to other modules (chatbot may want full catalog)
-            try { window.allGamesUnfiltered = snapshot.docs.map(doc => doc.data()); } catch (e) { /* ignore */ }
+    // Apply current filters/sort to allGames and render all cards in a single DOM write.
+    function renderFilteredGames(allGames, shortlistedMap) {
+        const toNumber = (val) => {
+            const n = parseInt(val, 10);
+            return Number.isFinite(n) ? n : null;
+        };
 
-            // Apply filters
-            games = games.filter(game => {
-                // Wishlist filter
-                if (showOnlyFavorites && currentUser && !userFavorites.includes(game.bggId)) return false;
+        // Apply filters
+        let games = allGames.filter(game => {
+            if (showOnlyFavorites && currentUser && !userFavorites.includes(game.bggId)) return false;
+            if (searchTerm && !game.name.toLowerCase().includes(searchTerm)) return false;
+            const minP = toNumber(game.minPlayers);
+            const maxP = toNumber(game.maxPlayers);
+            const playTime = toNumber(game.playingTime);
+            const year = toNumber(game.year);
+            if (minPlayersFilter !== null && (minP === null || minP < minPlayersFilter)) return false;
+            if (maxPlayersFilter !== null && (maxP === null || maxP > maxPlayersFilter)) return false;
+            if (maxPlaytimeFilter !== null && (playTime === null || playTime > maxPlaytimeFilter)) return false;
+            if (yearFilter !== null && (year === null || year !== yearFilter)) return false;
+            return true;
+        });
 
-                // Search by name
-                if (searchTerm && !game.name.toLowerCase().includes(searchTerm)) return false;
+        // Apply sorting
+        games.sort((a, b) => {
+            const aName = a.name || '';
+            const bName = b.name || '';
+            const aMin = toNumber(a.minPlayers) ?? Number.MAX_SAFE_INTEGER;
+            const bMin = toNumber(b.minPlayers) ?? Number.MAX_SAFE_INTEGER;
+            const aMax = toNumber(a.maxPlayers) ?? Number.MAX_SAFE_INTEGER;
+            const bMax = toNumber(b.maxPlayers) ?? Number.MAX_SAFE_INTEGER;
+            const aYear = toNumber(a.year) ?? 0;
+            const bYear = toNumber(b.year) ?? 0;
+            switch (sortOption) {
+                case 'year_asc':   return aYear - bYear || aName.localeCompare(bName);
+                case 'year_desc':  return bYear - aYear || aName.localeCompare(bName);
+                case 'min_players_asc': return aMin - bMin || aName.localeCompare(bName);
+                case 'max_players_asc': return aMax - bMax || aName.localeCompare(bName);
+                case 'name_asc':
+                default:           return aName.localeCompare(bName);
+            }
+        });
 
-                const minP = toNumber(game.minPlayers);
-                const maxP = toNumber(game.maxPlayers);
-                const playTime = toNumber(game.playingTime);
-                const year = toNumber(game.year);
+        // Expose filtered & sorted list to other modules (chatbot)
+        try { window.allGames = games; } catch (e) { /* ignore */ }
 
-                if (minPlayersFilter !== null && (minP === null || minP < minPlayersFilter)) return false;
-                if (maxPlayersFilter !== null && (maxP === null || maxP > maxPlayersFilter)) return false;
-                if (maxPlaytimeFilter !== null && (playTime === null || playTime > maxPlaytimeFilter)) return false;
-                if (yearFilter !== null && (year === null || year !== yearFilter)) return false;
+        // Layout classes
+        let colClass = 'col-xl-2 col-lg-3 col-md-4 col-6';
+        if (currentLayout === 'small-grid') colClass = 'col-xl-1 col-lg-2 col-md-3 col-4';
+        if (currentLayout === 'list') colClass = 'col-12';
 
-                return true;
-            });
+        // Build all card HTML as a single string to avoid per-card reflows
+        let allCardsHtml = '';
+        games.forEach(game => {
+            const cardLayoutClass = currentLayout === 'list' ? 'list-layout' : '';
+            const isFav = currentUser && userFavorites.includes(game.bggId);
+            const favBtnClass = isFav ? 'active' : '';
+            const favAria = `Toggle favorite for ${game.name}`;
+            const favButton = `<button class="btn btn-sm favorite-toggle ${favBtnClass}" data-bgg-id="${game.bggId}" aria-label="${favAria}" title="${favAria}">${isFav ? '★' : '☆'}</button>`;
+            let voteButtonHTML = '';
+            if (currentUser === adminUser) {
+                const shortlistDoc = shortlistedMap[game.bggId];
+                const isShortlisted = Boolean(shortlistDoc);
+                const voters = shortlistDoc ? (shortlistDoc.voters || []) : [];
+                const isVotedByAdmin = voters.includes(currentUser);
+                const btnText = isShortlisted ? 'Shortlisted ✓' : 'Shortlist';
+                const btnClass = isVotedByAdmin ? 'voted' : (isShortlisted ? 'shortlisted' : '');
+                voteButtonHTML = `<button class="btn btn-sm btn-vote add-to-shortlist-button ${btnClass}" data-bgg-id="${game.bggId}" aria-pressed="${isVotedByAdmin}" aria-label="${btnText} \u2014 ${game.name}">${btnText}</button>`;
+            }
 
-            // Apply sorting
-            games.sort((a, b) => {
-                const aName = a.name || '';
-                const bName = b.name || '';
-                const aMin = toNumber(a.minPlayers) ?? Number.MAX_SAFE_INTEGER;
-                const bMin = toNumber(b.minPlayers) ?? Number.MAX_SAFE_INTEGER;
-                const aMax = toNumber(a.maxPlayers) ?? Number.MAX_SAFE_INTEGER;
-                const bMax = toNumber(b.maxPlayers) ?? Number.MAX_SAFE_INTEGER;
-                const aYear = toNumber(a.year) ?? 0;
-                const bYear = toNumber(b.year) ?? 0;
-
-                switch (sortOption) {
-                    case 'year_asc':
-                        return aYear - bYear || aName.localeCompare(bName);
-                    case 'year_desc':
-                        return bYear - aYear || aName.localeCompare(bName);
-                    case 'min_players_asc':
-                        return aMin - bMin || aName.localeCompare(bName);
-                    case 'max_players_asc':
-                        return aMax - bMax || aName.localeCompare(bName);
-                    case 'name_asc':
-                    default:
-                        return aName.localeCompare(bName);
-                }
-            });
-
-            // Expose the filtered & sorted games to other modules (chatbot)
-            try { window.allGames = games; } catch (e) { /* ignore */ }
-
-            // Layout classes
-            let colClass = 'col-xl-2 col-lg-3 col-md-4 col-6'; // Default to large-grid (same as old small-grid)
-            if (currentLayout === 'small-grid') colClass = 'col-xl-1 col-lg-2 col-md-3 col-4';
-            if (currentLayout === 'list') colClass = 'col-12';
-
-            games.forEach(game => {
-                const cardLayoutClass = currentLayout === 'list' ? 'list-layout' : '';
-                const isFav = currentUser && userFavorites.includes(game.bggId);
-                const favBtnClass = isFav ? 'active' : '';
-                const favAria = `Toggle favorite for ${game.name}`;
-                const favButton = `<button class="btn btn-sm favorite-toggle ${favBtnClass}" data-bgg-id="${game.bggId}" aria-label="${favAria}" title="${favAria}">${isFav ? '★' : '☆'}</button>`;
-                // Show Shortlist button on collection page only to admin. If the game is already shortlisted, mark as voted/highlighted.
-                let voteButtonHTML = '';
-                if (currentUser === adminUser) {
-                    const shortlistDoc = shortlistedMap[game.bggId];
-                    const isShortlisted = Boolean(shortlistDoc);
-                    const voters = shortlistDoc ? (shortlistDoc.voters || []) : [];
-                    const isVotedByAdmin = voters.includes(currentUser);
-                    const btnText = isShortlisted ? 'Shortlisted ✓' : 'Shortlist';
-                    const btnClass = isVotedByAdmin ? 'voted' : (isShortlisted ? 'shortlisted' : '');
-                    voteButtonHTML = `<button class="btn btn-sm btn-vote add-to-shortlist-button ${btnClass}" data-bgg-id="${game.bggId}" aria-pressed="${isVotedByAdmin}" aria-label="${btnText} \u2014 ${game.name}">${btnText}</button>`;
-                }
-                
-                let gameCard = '';
-                if (currentLayout === 'small-grid') {
-                    gameCard = `
+            if (currentLayout === 'small-grid') {
+                allCardsHtml += `
                     <div class="${colClass} mb-4">
                         <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
                             <div class="game-card-image-container">
@@ -2039,15 +2006,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div class="card-body">
                                 <h5 class="card-title">${game.name}</h5>
-                                <div class="d-flex gap-2">
-                                    ${voteButtonHTML}
-                                </div>
+                                <div class="d-flex gap-2">${voteButtonHTML}</div>
                             </div>
                         </div>
-                    </div>
-                `;
-                } else if (currentLayout === 'list') {
-                    gameCard = `
+                    </div>`;
+            } else if (currentLayout === 'list') {
+                allCardsHtml += `
                     <div class="${colClass} mb-4">
                         <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
                             <div class="game-card-image-container">
@@ -2056,16 +2020,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="card-body">
                                 <h5 class="card-title"><span class="game-title-text">${game.name}</span></h5>
                                 <div class="d-flex gap-2 card-actions-row align-items-center">
-                                    ${favButton}
-                                    ${voteButtonHTML}
+                                    ${favButton}${voteButtonHTML}
                                 </div>
                             </div>
                         </div>
-                    </div>
-                `;
-                } else {
-                    // large-grid (default) - keep favorite inline to the right of the title
-                    gameCard = `
+                    </div>`;
+            } else {
+                allCardsHtml += `
                     <div class="${colClass} mb-4">
                         <div class="card game-card ${cardLayoutClass}" data-bgg-id="${game.bggId}">
                             <div class="game-card-image-container">
@@ -2073,35 +2034,28 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div class="card-body">
                                 <h5 class="card-title d-flex align-items-center justify-content-between"><span class="game-title-text">${game.name}</span>${favButton}</h5>
-                                <div class="d-flex gap-2">
-                                    ${voteButtonHTML}
-                                </div>
+                                <div class="d-flex gap-2">${voteButtonHTML}</div>
                             </div>
                         </div>
-                    </div>
-                `;
-                }
-                gameCollectionContainer.insertAdjacentHTML('beforeend', gameCard);
-            });
-            // Update collection count pill (number of games currently listed)
-            try {
-                const pill = document.getElementById('collection-count-pill');
-                if (pill) {
-                    const count = games.length;
-                    const label = (translations && translations.collection_label_games) ? translations.collection_label_games : 'games';
-                    // Two-line content: number on first line, localized label on second line
-                    pill.innerHTML = `<span class="pill-number">${count}</span><span class="pill-label">${label}</span>`;
-                    pill.classList.toggle('d-none', count === 0);
-                    // Use contextual color: secondary when not filtered, primary when filters/search applied
-                    const hasFilter = showOnlyFavorites || Boolean(searchTerm) || minPlayersFilter !== null || maxPlayersFilter !== null || maxPlaytimeFilter !== null || yearFilter !== null;
-                    pill.classList.remove('bg-secondary','bg-primary');
-                    pill.classList.add(hasFilter ? 'bg-primary' : 'bg-secondary');
-                }
-            } catch (e) { /* non-fatal */ }
-        } catch (error) {
-            console.error("Error fetching games from Firebase:", error);
-            gameCollectionContainer.innerHTML = '<p class="text-danger">Could not fetch game collection from Firebase.</p>';
-        }
+                    </div>`;
+            }
+        });
+        // Single DOM write — avoids per-card reflows
+        gameCollectionContainer.innerHTML = allCardsHtml;
+
+        // Update collection count pill
+        try {
+            const pill = document.getElementById('collection-count-pill');
+            if (pill) {
+                const count = games.length;
+                const label = (translations && translations.collection_label_games) ? translations.collection_label_games : 'games';
+                pill.innerHTML = `<span class="pill-number">${count}</span><span class="pill-label">${label}</span>`;
+                pill.classList.toggle('d-none', count === 0);
+                const hasFilter = showOnlyFavorites || Boolean(searchTerm) || minPlayersFilter !== null || maxPlayersFilter !== null || maxPlaytimeFilter !== null || yearFilter !== null;
+                pill.classList.remove('bg-secondary', 'bg-primary');
+                pill.classList.add(hasFilter ? 'bg-primary' : 'bg-secondary');
+            }
+        } catch (e) { /* non-fatal */ }
     }
 
     // --- Event Listeners ---
@@ -2761,12 +2715,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     // wire handlers (use onclick to avoid duplicate listeners)
                     editBtn.onclick = () => {
                         // toggle editor visibility and populate with current summary/description if present
-                        const hasSummary = summaryDoc.exists && summaryDoc.data()[summaryField];
+                        const hasSummary = summarySnap.exists && summarySnap.data()[summaryField];
                         const hasDescription = game && game.description && String(game.description).trim();
                         if (hasDescription) {
                             aiText.value = game.description || '';
                         } else if (hasSummary) {
-                            aiText.value = summaryDoc.data()[summaryField] || '';
+                            aiText.value = summarySnap.data()[summaryField] || '';
                         } else {
                             aiText.value = '';
                         }
@@ -3166,7 +3120,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 await batch.commit();
                 uploadStatusDiv.innerHTML = `<p class="text-success">Upload complete! Added: ${gamesAdded}, Updated: ${gamesUpdated}, Removed: ${gamesRemoved} games.</p>`;
-                fetchAndDisplayGames(); // Refresh the collection view
+                fetchAndDisplayGames(true); // Force re-fetch after upload to bust the cache
             } catch (error) {
                 console.error('Error uploading BGG collection:', error);
                 uploadStatusDiv.innerHTML = `<p class="text-danger">Error uploading collection: ${error.message}</p>`;
@@ -3184,7 +3138,8 @@ document.addEventListener('DOMContentLoaded', () => {
         async function fetchAndDisplayEvents() {
             const list = document.getElementById('events-list');
             list.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
-            eventsCollectionRef.orderBy('date', 'asc').onSnapshot(snapshot => {
+            if (unsubEvents) { unsubEvents(); unsubEvents = null; }
+            unsubEvents = eventsCollectionRef.orderBy('date', 'asc').onSnapshot(snapshot => {
                 if (snapshot.empty) {
                     list.innerHTML = `<p>${translations.no_events_yet || 'No events yet.'}</p>`;
                     return;
@@ -3416,7 +3371,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Polls: Fetch and Display
     async function fetchAndDisplayPolls() {
         pollsListContainer.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
-        pollsCollectionRef.orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+        if (unsubPolls) { unsubPolls(); unsubPolls = null; }
+        unsubPolls = pollsCollectionRef.orderBy('createdAt', 'desc').onSnapshot(snapshot => {
             if (snapshot.empty) {
                 pollsListContainer.innerHTML = `<p>${translations.no_polls_yet || 'No polls yet.'}</p>`;
                 return;
