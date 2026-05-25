@@ -224,35 +224,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Provide the raw export payload to the model so it sees the full catalog.
                     if (payload && String(payload).trim()) {
                         if (format === 'json') {
-                            // include both a parsed list and the full payload for completeness
+                            // Send only essential fields per game — full JSON payloads of large
+                            // collections exceed free-tier context limits (65k tokens).
                             try {
                                 const j = JSON.parse(payload);
                                 if (Array.isArray(j)) {
-                                    const names = j.map(g => g.name || g.title || '').filter(Boolean);
-                                    if (names.length) {
-                                                exportListText = (chatbotTranslations.chatbot_export_snapshot_json_list || 'Export snapshot (JSON) - list of game names:') + '\n' + names.map(n => `- ${n}`).join('\n') + '\n\n' + (chatbotTranslations.chatbot_export_snapshot_json_full || 'Export snapshot (JSON) - full payload:') + '\n' + JSON.stringify(j, null, 2);
-                                            } else {
-                                                exportListText = (chatbotTranslations.chatbot_export_snapshot_json_full || 'Export snapshot (JSON) - full payload:') + '\n' + JSON.stringify(j, null, 2);
-                                            }
-                                } else {
-                                    exportListText = (chatbotTranslations.chatbot_export_snapshot_json_full || 'Export snapshot (JSON) - full payload:') + '\n' + JSON.stringify(j, null, 2);
+                                    const slim = j.map(g => {
+                                        const entry = { name: g.name || g.title || '' };
+                                        if (g.minPlayers || g.maxPlayers) entry.players = `${g.minPlayers || '?'}-${g.maxPlayers || '?'}`;
+                                        if (g.playingTime) entry.time = g.playingTime;
+                                        if (g.rating) entry.rating = g.rating;
+                                        return entry;
+                                    }).filter(g => g.name);
+                                    if (slim.length) {
+                                        exportListText = (chatbotTranslations.chatbot_export_snapshot_json_list || 'Game collection:') + '\n' + JSON.stringify(slim);
+                                    }
                                 }
-                            } catch (e) {
-                                exportListText = (chatbotTranslations.chatbot_export_snapshot_json_parse_failed || 'Export snapshot (JSON, parse failed):') + '\n' + payload;
-                            }
+                            } catch (e) { /* ignore parse errors */ }
                         } else {
-                            // For XML exports, attempt to extract <name> tags into a list, then include full XML
+                            // For XML exports, extract only <name> tags into a list
                             try {
                                 const m = payload.match(/<name>(.*?)<\/name>/g);
                                 if (m && m.length) {
                                     const names = m.map(s => s.replace(/<\/?.*?>/g,'').trim());
-                                    exportListText = (chatbotTranslations.chatbot_export_snapshot_xml_list || 'Export snapshot (XML) - list of game names:') + '\n' + names.map(n => `- ${n}`).join('\n') + '\n\n' + (chatbotTranslations.chatbot_export_snapshot_xml_full || 'Export snapshot (XML) - full payload:') + '\n' + payload;
-                                } else {
-                                    exportListText = (chatbotTranslations.chatbot_export_snapshot_xml_full || 'Export snapshot (XML) - full payload:') + '\n' + payload;
+                                    exportListText = (chatbotTranslations.chatbot_export_snapshot_xml_list || 'Game collection:') + '\n' + names.map(n => `- ${n}`).join('\n');
                                 }
-                            } catch (e) {
-                                exportListText = 'Export snapshot (XML) - full payload:\n' + payload;
-                            }
+                            } catch (e) { /* ignore parse errors */ }
                         }
                     }
                 }
