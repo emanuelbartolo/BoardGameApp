@@ -124,7 +124,7 @@ exports.generateAiSummary = onRequest({secrets: [googleAiApiKey]}, async (reques
 
     try {
       // Allow caller to override model via request body, else use env var, else default
-      const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.AI_MODEL || "gemma-4-31b-it");
+      const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.AI_MODEL || "gemini-2.5-flash");
       logger.info(`Using model: ${modelName}`);
 
       // Guard input size
@@ -164,7 +164,7 @@ exports.generateAiSummary = onRequest({secrets: [googleAiApiKey]}, async (reques
       }
 
       const data = await apiResponse.json();
-      const summary = data.choices[0].message.content;
+      const summary = (data.choices[0].message.content || '').replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
 
       response.status(200).json({ summary });
     } catch (error) {
@@ -183,7 +183,7 @@ exports.generateAiChatV2 = onCall({ secrets: [googleAiApiKey], timeoutSeconds: 5
   const incoming = Array.isArray(data.messages) ? data.messages
                     : (data.prompt ? [{ role: 'user', content: String(data.prompt) }] : null);
   const providedConvoId = data.conversationId ? String(data.conversationId) : null;
-  const modelName = data.model ? String(data.model) : (process.env.AI_MODEL || 'gemma-4-31b-it');
+  const modelName = data.model ? String(data.model) : (process.env.AI_MODEL || 'gemini-2.5-flash');
 
   if (!incoming || !incoming.length) {
     throw new Error('Missing messages or prompt');
@@ -253,9 +253,10 @@ exports.generateAiChatV2 = onCall({ secrets: [googleAiApiKey], timeoutSeconds: 5
     }
 
     const apiData = await apiResponse.json();
-    const assistantText = apiData.choices && apiData.choices[0] && apiData.choices[0].message && apiData.choices[0].message.content
+    const rawText = apiData.choices && apiData.choices[0] && apiData.choices[0].message && apiData.choices[0].message.content
                           ? apiData.choices[0].message.content
                           : '';
+    const assistantText = rawText.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
 
     // Persist assistant reply
     await chatCol.add({
