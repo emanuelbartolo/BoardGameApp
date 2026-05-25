@@ -89,8 +89,8 @@ exports.validatePassword = onCall(async (request) => {
 
 // Configurable server-side limits and LLM params (environment variables)
 const SERVER_MAX_INPUT_CHARS = parseInt(process.env.OPENROUTER_MAX_INPUT_CHARS || '1200000', 10); // default 1.2M chars
-const OPENROUTER_DEFAULT_TEMPERATURE = parseFloat(process.env.OPENROUTER_TEMPERATURE || '0.0');
-const OPENROUTER_DEFAULT_MAX_OUTPUT = parseInt(process.env.OPENROUTER_MAX_OUTPUT_TOKENS || '256', 10);
+const OPENROUTER_DEFAULT_TEMPERATURE = parseFloat(process.env.OPENROUTER_TEMPERATURE || '0.3');
+const OPENROUTER_DEFAULT_MAX_OUTPUT = parseInt(process.env.OPENROUTER_MAX_OUTPUT_TOKENS || '512', 10);
 
 exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (request, response) => {
     response.set('Access-Control-Allow-Origin', '*');
@@ -124,7 +124,7 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
 
     try {
       // Allow caller to override model via request body, else use env var, else default
-      const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.OPENROUTER_MODEL || "google/gemma-3-27b-it:free");
+      const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free");
       logger.info(`Using model: ${modelName}`);
 
       // Guard input size
@@ -183,7 +183,7 @@ exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey], timeoutSeconds:
   const incoming = Array.isArray(data.messages) ? data.messages
                     : (data.prompt ? [{ role: 'user', content: String(data.prompt) }] : null);
   const providedConvoId = data.conversationId ? String(data.conversationId) : null;
-  const modelName = data.model ? String(data.model) : (process.env.OPENROUTER_MODEL || 'google/gemma-3-27b-it:free');
+  const modelName = data.model ? String(data.model) : (process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free');
 
   if (!incoming || !incoming.length) {
     throw new Error('Missing messages or prompt');
