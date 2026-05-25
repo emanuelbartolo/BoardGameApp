@@ -90,7 +90,7 @@ exports.validatePassword = onCall(async (request) => {
 // Configurable server-side limits and LLM params (environment variables)
 const SERVER_MAX_INPUT_CHARS = parseInt(process.env.OPENROUTER_MAX_INPUT_CHARS || '1200000', 10); // default 1.2M chars
 const OPENROUTER_DEFAULT_TEMPERATURE = parseFloat(process.env.OPENROUTER_TEMPERATURE || '0.3');
-const OPENROUTER_DEFAULT_MAX_OUTPUT = parseInt(process.env.OPENROUTER_MAX_OUTPUT_TOKENS || '512', 10);
+const OPENROUTER_DEFAULT_MAX_OUTPUT = parseInt(process.env.OPENROUTER_MAX_OUTPUT_TOKENS || '2048', 10);
 
 exports.generateAiSummary = onRequest({secrets: [googleAiApiKey]}, async (request, response) => {
     response.set('Access-Control-Allow-Origin', '*');
@@ -142,7 +142,8 @@ exports.generateAiSummary = onRequest({secrets: [googleAiApiKey]}, async (reques
         model: modelName,
         messages: [{ role: 'user', content: prompt }],
         temperature: OPENROUTER_DEFAULT_TEMPERATURE,
-        max_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT
+        max_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT,
+        thinking: { thinking_budget: 0 }
       };
 
       const apiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
@@ -231,7 +232,8 @@ exports.generateAiChatV2 = onCall({ secrets: [googleAiApiKey], timeoutSeconds: 5
       model: modelName,
       messages: normalized,
       temperature: OPENROUTER_DEFAULT_TEMPERATURE,
-      max_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT
+      max_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT,
+      thinking: { thinking_budget: 0 }
     };
 
     const apiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
