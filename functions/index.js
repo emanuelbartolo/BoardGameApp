@@ -124,7 +124,7 @@ exports.generateAiSummary = onRequest({secrets: [openrouterApiKey]}, async (requ
 
     try {
       // Allow caller to override model via request body, else use env var, else default
-      const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free");
+      const modelName = (request.body && request.body.model) ? String(request.body.model) : (process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free");
       logger.info(`Using model: ${modelName}`);
 
       // Guard input size
@@ -183,7 +183,7 @@ exports.generateAiChatV2 = onCall({ secrets: [openrouterApiKey], timeoutSeconds:
   const incoming = Array.isArray(data.messages) ? data.messages
                     : (data.prompt ? [{ role: 'user', content: String(data.prompt) }] : null);
   const providedConvoId = data.conversationId ? String(data.conversationId) : null;
-  const modelName = data.model ? String(data.model) : (process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free');
+  const modelName = data.model ? String(data.model) : (process.env.OPENROUTER_MODEL || 'google/gemma-4-31b-it:free');
 
   if (!incoming || !incoming.length) {
     throw new Error('Missing messages or prompt');
