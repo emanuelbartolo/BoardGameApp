@@ -142,7 +142,8 @@ exports.generateAiSummary = onRequest({secrets: [googleAiApiKey]}, async (reques
         model: modelName,
         messages: [{ role: 'user', content: prompt }],
         temperature: OPENROUTER_DEFAULT_TEMPERATURE,
-        max_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT
+        max_tokens: OPENROUTER_DEFAULT_MAX_OUTPUT,
+        reasoning_effort: "none"
       };
 
       const apiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
