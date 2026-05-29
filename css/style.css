@@ -969,6 +969,24 @@ html, body {
     box-shadow: none !important;
 }
 
+/* --- BGG attribution footer --- */
+.bgg-attribution {
+    position: fixed;
+    bottom: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 900;
+    opacity: 0.65;
+    transition: opacity 0.2s;
+    pointer-events: auto;
+}
+.bgg-attribution:hover {
+    opacity: 1;
+}
+.bgg-attribution img {
+    display: block;
+}
+
 /* --- Chatbot widget styles --- */
 .chatbot-container {
     position: fixed;
@@ -1044,6 +1062,7 @@ html, body {
 @media (max-width: 520px) {
     .chatbot-container { right: 8px; bottom: calc(var(--bottom-nav-height, 64px) + 8px); }
     .chatbot-panel { width: 92vw; }
+    .bgg-attribution { bottom: calc(var(--bottom-nav-height, 64px) + 0.35rem); }
 }
 
 

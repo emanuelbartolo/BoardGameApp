@@ -11,6 +11,9 @@ const db = admin.firestore();
 // Google AI Developer API key (aistudio.google.com)
 const googleAiApiKey = defineSecret("GOOGLE_AI_API_KEY");
 
+// BGG API token (boardgamegeek.com/settings/api)
+const bggApiToken = defineSecret("BGG_API_TOKEN");
+
 // --- Password Hashing Utilities ---
 // Using PBKDF2 for password hashing (built into Node crypto, no extra deps)
 const HASH_ITERATIONS = 100000;
@@ -276,3 +279,55 @@ exports.generateAiChatV2 = onCall({ secrets: [googleAiApiKey], timeoutSeconds: 5
 });
 
 // Note: conversation deletion is performed client-side to avoid extra callable/CORS complexity.
+
+// --- BGG Collection Sync ---
+// Callable function: fetchBggCollection({ username })
+// Fetches the BGG XML API v2 collection for the given username using the stored BGG API token.
+// Returns { status: 'ok', xml: '...' } or { status: 'queued', message: '...' }.
+exports.fetchBggCollection = onCall({ secrets: [bggApiToken] }, async (request) => {
+  const username = request.data && request.data.username ? String(request.data.username).trim() : '';
+  if (!username) {
+    throw new Error('BGG username is required.');
+  }
+
+  // Validate username: only alphanumeric, underscores, hyphens, max 50 chars
+  if (!/^[A-Za-z0-9_-]{1,50}$/.test(username)) {
+    throw new Error('Invalid BGG username.');
+  }
+
+  const token = bggApiToken.value();
+  if (!token) {
+    throw new Error('BGG_API_TOKEN secret is not configured.');
+  }
+
+  const url = `https://boardgamegeek.com/xmlapi2/collection?username=${encodeURIComponent(username)}&own=1&stats=1&excludesubtype=boardgameexpansion`;
+
+  logger.info(`Fetching BGG collection for user: ${username}`);
+
+  const bggResponse = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/xml',
+    },
+  });
+
+  if (bggResponse.status === 202) {
+    return { status: 'queued', message: 'BGG is queuing your collection export. Please try again in 5–10 seconds.' };
+  }
+
+  if (!bggResponse.ok) {
+    const errText = await bggResponse.text();
+    logger.error('BGG API error', bggResponse.status, errText);
+    throw new Error(`BGG API returned status ${bggResponse.status}.`);
+  }
+
+  const xml = await bggResponse.text();
+
+  // Sanity check: must look like a BGG items response
+  if (!xml.includes('<items')) {
+    logger.error('BGG response does not contain <items> element');
+    throw new Error('Unexpected response format from BGG API.');
+  }
+
+  return { status: 'ok', xml };
+});

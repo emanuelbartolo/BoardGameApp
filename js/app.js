@@ -80,6 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Callable Cloud Functions for password management
     const setPasswordFn = functions.httpsCallable('setPassword');
     const validatePasswordFn = functions.httpsCallable('validatePassword');
+    // Callable Cloud Function for BGG collection sync
+    const fetchBggCollectionFn = functions.httpsCallable('fetchBggCollection');
     
     // Global / top-level collections that remain unchanged
     const gamesCollectionRef = db.collection('games');
@@ -3132,6 +3134,103 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         reader.readAsText(file);
+    });
+
+    // Admin: Sync collection directly from BGG API
+    document.getElementById('sync-bgg-button').addEventListener('click', async () => {
+        if (currentUser !== adminUser) {
+            alert('Only the admin can sync the collection.');
+            return;
+        }
+
+        const usernameInput = document.getElementById('bgg-sync-username');
+        const bggUsername = usernameInput ? usernameInput.value.trim() : '';
+        if (!bggUsername) {
+            alert('Please enter a BGG username.');
+            return;
+        }
+
+        const uploadStatusDiv = document.getElementById('upload-status');
+        const syncBtn = document.getElementById('sync-bgg-button');
+        syncBtn.disabled = true;
+
+        const MAX_RETRIES = 8;
+        const RETRY_DELAY_MS = 6000;
+
+        let attempt = 0;
+        let result = null;
+
+        uploadStatusDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-success" role="status"><span class="visually-hidden">Syncing...</span></div> Fetching collection from BGG…';
+
+        try {
+            while (attempt < MAX_RETRIES) {
+                attempt++;
+                const response = await fetchBggCollectionFn({ username: bggUsername });
+                result = response.data;
+
+                if (result.status === 'ok') {
+                    break;
+                } else if (result.status === 'queued') {
+                    uploadStatusDiv.innerHTML = `<div class="spinner-border spinner-border-sm text-warning" role="status"></div> BGG is processing the request… (attempt ${attempt}/${MAX_RETRIES}, retrying in ${RETRY_DELAY_MS / 1000}s)`;
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+                } else {
+                    throw new Error(result.message || 'Unknown response from BGG function.');
+                }
+            }
+
+            if (!result || result.status !== 'ok') {
+                throw new Error('BGG did not return data after multiple retries. Please try again in a moment.');
+            }
+
+            uploadStatusDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div> Parsing and uploading to Firebase…';
+
+            const newGames = parseBggXml(result.xml);
+            const newGameBggIds = new Set(newGames.map(game => game.bggId));
+
+            const existingGamesSnapshot = await gamesCollectionRef.get();
+            const existingGameBggIds = new Set();
+            existingGamesSnapshot.forEach(doc => existingGameBggIds.add(doc.id));
+
+            const batch = db.batch();
+            let gamesAdded = 0;
+            let gamesUpdated = 0;
+            let gamesRemoved = 0;
+
+            const gamesToDelete = [...existingGameBggIds].filter(id => !newGameBggIds.has(id));
+            for (const bggId of gamesToDelete) {
+                batch.delete(gamesCollectionRef.doc(bggId));
+                gamesRemoved++;
+            }
+
+            newGames.forEach(game => {
+                const gameRef = gamesCollectionRef.doc(game.bggId);
+                const gameForGamesCollection = { ...game };
+                if (gameForGamesCollection.hasOwnProperty('description')) {
+                    delete gameForGamesCollection.description;
+                }
+                batch.set(gameRef, gameForGamesCollection, { merge: true });
+
+                if (game.description && String(game.description).trim()) {
+                    const sumRef = summariesCollectionRef.doc(game.bggId);
+                    batch.set(sumRef, { description_en: game.description }, { merge: true });
+                }
+
+                if (existingGameBggIds.has(game.bggId)) {
+                    gamesUpdated++;
+                } else {
+                    gamesAdded++;
+                }
+            });
+
+            await batch.commit();
+            uploadStatusDiv.innerHTML = `<p class="text-success">Sync complete! Added: ${gamesAdded}, Updated: ${gamesUpdated}, Removed: ${gamesRemoved} games.</p>`;
+            fetchAndDisplayGames(true);
+        } catch (error) {
+            console.error('Error syncing BGG collection:', error);
+            uploadStatusDiv.innerHTML = `<p class="text-danger">Sync error: ${error.message}</p>`;
+        } finally {
+            syncBtn.disabled = false;
+        }
     });
 
         // Events: create and list

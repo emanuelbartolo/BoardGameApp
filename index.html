@@ -274,21 +274,38 @@
             <section id="admin-view" class="d-none">
                 <div id="admin-panel" class="card bg-light p-3 mb-4">
                     <h4 data-i18n-key="admin_heading">Admin Controls</h4>
-                    <p data-i18n-key="admin_description">Update the group's shared game collection from a BGG XML file.</p>
-                    <ol>
-                        <li>
-                            <strong data-i18n-key="admin_get_bgg_file">Get BGG File:</strong> 
-                            <a href="https://boardgamegeek.com/xmlapi2/collection?username=leli84&own=1&stats=1&excludesubtype=boardgameexpansion" target="_blank" class="btn btn-secondary btn-sm" data-i18n-key="admin_get_bgg_file_button">Get BGG Collection File</a>
-                            <small class="d-block text-muted" data-i18n-key="admin_get_bgg_file_help">If you see a "processing" message, wait a minute and refresh that page until the XML appears, then save the file.</small>
-                        </li>
-                        <li class="mt-2">
-                            <strong data-i18n-key="admin_upload_file">Upload File:</strong>
-                            <div class="input-group">
-                                <input type="file" id="xml-file-input" class="form-control" accept=".xml">
-                                <button id="upload-collection-button" class="btn btn-primary" data-i18n-key="admin_upload_button">Upload to Firebase</button>
-                            </div>
-                        </li>
-                    </ol>
+                    <p data-i18n-key="admin_description">Update the group's shared game collection from BGG.</p>
+
+                    <!-- Option A: Direct sync via BGG API -->
+                    <div class="mb-3 p-3 border rounded bg-white">
+                        <strong data-i18n-key="admin_sync_bgg_heading">Sync directly from BGG</strong>
+                        <div class="input-group mt-2">
+                            <span class="input-group-text" data-i18n-key="admin_sync_bgg_username_label">BGG Username</span>
+                            <input type="text" id="bgg-sync-username" class="form-control" value="leli84" placeholder="your BGG username">
+                            <button id="sync-bgg-button" class="btn btn-success" data-i18n-key="admin_sync_bgg_button">Sync from BGG</button>
+                        </div>
+                        <small class="d-block text-muted mt-1" data-i18n-key="admin_sync_bgg_help">Fetches your owned collection directly from BGG using the configured API token. No file download needed.</small>
+                    </div>
+
+                    <!-- Option B: Manual file upload (fallback) -->
+                    <div class="mb-2">
+                        <strong data-i18n-key="admin_upload_file_heading">Or upload manually:</strong>
+                        <ol class="mt-1 mb-0">
+                            <li>
+                                <strong data-i18n-key="admin_get_bgg_file">Get BGG File:</strong>
+                                <a href="https://boardgamegeek.com/xmlapi2/collection?username=leli84&own=1&stats=1&excludesubtype=boardgameexpansion" target="_blank" class="btn btn-secondary btn-sm" data-i18n-key="admin_get_bgg_file_button">Get BGG Collection File</a>
+                                <small class="d-block text-muted" data-i18n-key="admin_get_bgg_file_help">If you see a "processing" message, wait a minute and refresh that page until the XML appears, then save the file.</small>
+                            </li>
+                            <li class="mt-2">
+                                <strong data-i18n-key="admin_upload_file">Upload File:</strong>
+                                <div class="input-group">
+                                    <input type="file" id="xml-file-input" class="form-control" accept=".xml">
+                                    <button id="upload-collection-button" class="btn btn-primary" data-i18n-key="admin_upload_button">Upload to Firebase</button>
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+
                     <div id="upload-status" class="mt-2"></div>
                     <div class="d-flex align-items-center gap-2 mt-3">
                         <div class="form-check form-switch">
@@ -592,6 +609,14 @@
 
     <!-- Chatbot widget markup (small robot on the bottom-right) -->
     <div id="chatbot-container" class="chatbot-container" aria-hidden="false">
+
+    <!-- BGG attribution footer (required by API terms) -->
+    <footer class="bgg-attribution">
+        <a href="https://boardgamegeek.com" target="_blank" rel="noopener noreferrer" aria-label="BoardGameGeek">
+            <img src="icons/powered_by_K_01_SM.png" alt="Powered by BoardGameGeek" height="24">
+        </a>
+    </footer>
+
         <button id="chatbot-toggle" class="chatbot-toggle" aria-label="Open chat helper" title="Chat with robot">🤖</button>
         <div id="chatbot-panel" class="chatbot-panel d-none" role="dialog" aria-label="Game finder chat">
             <div class="chatbot-header d-flex align-items-center justify-content-between">
